@@ -1,4 +1,4 @@
-# Ody
+# Ody Technical Assessment
 
 Fullstack restaurant operations app, organized as a pnpm + Turborepo monorepo.
 
