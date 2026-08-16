@@ -3,9 +3,14 @@
     "name": "Ody Dashboard",
     "slug": "ody-dashboard",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "scheme": "ody",
+    "orientation": "default",
     "userInterfaceStyle": "automatic",
     "platforms": ["ios", "android", "web"],
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    },
     "ios": {
       "supportsTablet": true
     },

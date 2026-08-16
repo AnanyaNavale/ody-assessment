@@ -20,10 +20,48 @@ function singularize(name: string): string {
   return name;
 }
 
-function operationName(_operation: unknown, route: string, verb: string): string {
-  const isById = route.includes("{");
-  const resource = toPascalCase(route.replace(/\{[^}]+\}/g, ""));
+function hasPathParam(operation: {
+  parameters?: Array<{ in?: string } | { $ref: string }>;
+}): boolean {
+  return (operation.parameters ?? []).some(
+    (parameter) => "in" in parameter && parameter.in === "path",
+  );
+}
+
+function operationName(
+  operation: { summary?: string; parameters?: Array<{ in?: string } | { $ref: string }> },
+  route: string,
+  verb: string,
+): string {
+  const resource = toPascalCase(
+    route
+      .replace(/\$\{[^}]+\}/g, "")
+      .replace(/\{[^}]+\}/g, "")
+      .replace(/:[^/]+/g, ""),
+  );
   const singular = singularize(resource);
+  const summary = operation.summary ?? "";
+  const isById =
+    hasPathParam(operation) ||
+    /\$\{[^}]+\}/.test(route) ||
+    /\{[^}]+\}/.test(route) ||
+    /:[A-Za-z_][\w]*/.test(route);
+
+  if (/^list/i.test(summary)) {
+    return `get${resource}`;
+  }
+  if (/^get/i.test(summary)) {
+    return `get${singular}`;
+  }
+  if (/^create/i.test(summary)) {
+    return `create${singular}`;
+  }
+  if (/^update/i.test(summary)) {
+    return `update${singular}`;
+  }
+  if (/^delete/i.test(summary)) {
+    return `delete${singular}`;
+  }
 
   switch (verb) {
     case "get":

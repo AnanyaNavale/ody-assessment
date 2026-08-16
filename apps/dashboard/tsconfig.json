@@ -5,5 +5,13 @@
     "lib": ["ES2022", "DOM"],
     "noEmit": true
   },
-  "include": ["src", "*.ts", "*.tsx", "*.js"]
+  "include": [
+    "app",
+    "src",
+    "*.ts",
+    "*.tsx",
+    "*.js",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
 }

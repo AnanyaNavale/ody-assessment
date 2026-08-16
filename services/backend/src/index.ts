@@ -1,6 +1,7 @@
 import { swaggerUI } from "@hono/swagger-ui";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { eq, asc } from "drizzle-orm";
+import { cors } from "hono/cors";
 import {
   createDb,
   categories,
@@ -329,6 +330,15 @@ const app = new OpenAPIHono<{ Bindings: Bindings; Variables: Variables }>({
     }
   },
 });
+
+app.use(
+  "/api/*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type"],
+  }),
+);
 
 // Middleware to create db instance per request
 app.use("*", async (c, next) => {
