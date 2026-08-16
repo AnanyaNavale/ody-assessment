@@ -8,12 +8,14 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "build": "wrangler deploy --dry-run --outdir dist",
-    "seed": "tsx src/db/seed.ts",
+    "seed": "tsx ./src/db/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx ./src/db/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx ./src/db/seed.ts",
+    "clear:settings": "tsx ./src/db/clear-settings.ts",
+    "test:order": "tsx ./src/test-order.ts",
     "test": "echo 'Tests not configured yet'"
   },
   "dependencies": {
@@ -22,6 +24,7 @@
     "@neondatabase/serverless": "^1.1.0",
     "@ody/types": "workspace:*",
     "drizzle-orm": "^0.44.0",
+    "drizzle-zod": "^0.7.1",
     "hono": "^4.7.0",
     "zod": "^3.24.2"
   },

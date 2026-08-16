@@ -1,13 +1,18 @@
 import { swaggerUI } from "@hono/swagger-ui";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, inArray, desc, and, sql, sum, count } from "drizzle-orm";
 import { cors } from "hono/cors";
 import {
   createDb,
   categories,
+  customers,
   menuItems,
+  orderItems,
+  orders,
+  restaurantSettings,
   type Category,
   type MenuItem,
+  type Order,
 } from "./db";
 
 // Cloudflare Workers environment bindings
@@ -105,6 +110,227 @@ const DeleteResultSchema = z
   })
   .openapi("DeleteResult");
 
+const CreateOrderItemSchema = z
+  .object({
+    menuItemId: z.string().uuid(),
+    quantity: z.number().int().min(1).max(99),
+    notes: z.string().optional(),
+  })
+  .openapi("CreateOrderItem");
+
+const CreateOrderSchema = z
+  .object({
+    customerId: z.string().uuid().openapi({
+      example: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    }),
+    items: z.array(CreateOrderItemSchema).min(1),
+    notes: z.string().optional(),
+  })
+  .openapi("CreateOrder");
+
+const OrderStatusSchema = z.enum([
+  "pending",
+  "preparing",
+  "ready",
+  "completed",
+  "cancelled",
+]);
+
+type OrderStatusValue = z.infer<typeof OrderStatusSchema>;
+
+const ALLOWED_STATUS_TRANSITIONS: Record<
+  OrderStatusValue,
+  readonly OrderStatusValue[]
+> = {
+  pending: ["preparing", "cancelled"],
+  preparing: ["ready", "cancelled"],
+  ready: ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+};
+
+function isAllowedStatusTransition(
+  currentStatus: OrderStatusValue,
+  nextStatus: OrderStatusValue,
+): boolean {
+  return ALLOWED_STATUS_TRANSITIONS[currentStatus].includes(nextStatus);
+}
+
+const UpdateOrderStatusSchema = z
+  .object({
+    status: OrderStatusSchema,
+  })
+  .openapi("UpdateOrderStatus");
+
+const OrderSchema = z
+  .object({
+    id: z.string().uuid(),
+    customerId: z.string().uuid(),
+    status: OrderStatusSchema,
+    subtotal: z.string(),
+    tax: z.string(),
+    total: z.string(),
+    notes: z.string().nullable(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .openapi("Order");
+
+const OrderCustomerSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string(),
+    email: z.string(),
+    phone: z.string().nullable(),
+  })
+  .openapi("OrderCustomer");
+
+const OrderLineMenuItemSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string(),
+  })
+  .openapi("OrderLineMenuItem");
+
+const OrderLineItemSchema = z
+  .object({
+    id: z.string().uuid(),
+    menuItemId: z.string().uuid(),
+    quantity: z.number().int(),
+    priceAtTime: z.string(),
+    subtotal: z.string(),
+    notes: z.string().nullable(),
+    menuItem: OrderLineMenuItemSchema,
+  })
+  .openapi("OrderLineItem");
+
+const OrderWithDetailsSchema = OrderSchema.extend({
+  customer: OrderCustomerSchema,
+  orderItems: z.array(OrderLineItemSchema),
+}).openapi("OrderWithDetails");
+
+const ListOrdersQuerySchema = z.object({
+  status: z
+    .enum(["pending", "preparing", "ready", "completed", "cancelled"])
+    .optional()
+    .openapi({
+      param: { name: "status", in: "query" },
+    }),
+  customerId: z
+    .string()
+    .uuid()
+    .optional()
+    .openapi({
+      param: { name: "customerId", in: "query" },
+    }),
+  limit: z.coerce.number().int().min(1).max(100).default(50).openapi({
+    param: { name: "limit", in: "query" },
+  }),
+  offset: z.coerce.number().int().min(0).default(0).openapi({
+    param: { name: "offset", in: "query" },
+  }),
+});
+
+const ListCustomersQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50).openapi({
+    param: { name: "limit", in: "query" },
+  }),
+  offset: z.coerce.number().int().min(0).default(0).openapi({
+    param: { name: "offset", in: "query" },
+  }),
+});
+
+const CustomerOrderSummarySchema = z
+  .object({
+    id: z.string().uuid(),
+    status: OrderStatusSchema,
+    total: z.string(),
+    createdAt: z.string().datetime(),
+  })
+  .openapi("CustomerOrderSummary");
+
+const CustomerSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string(),
+    email: z.string(),
+    phone: z.string().nullable(),
+    totalOrders: z.number().int(),
+    totalSpent: z.string(),
+    createdAt: z.string().datetime(),
+  })
+  .openapi("Customer");
+
+const CustomerListItemSchema = CustomerSchema.extend({
+  recentOrders: z.array(CustomerOrderSummarySchema),
+}).openapi("CustomerListItem");
+
+const CustomerDetailSchema = CustomerSchema.extend({
+  orders: z.array(CustomerOrderSummarySchema),
+}).openapi("CustomerDetail");
+
+const PopularItemSchema = z
+  .object({
+    menuItemId: z.string().uuid(),
+    menuItemName: z.string(),
+    orderCount: z.number().int(),
+  })
+  .openapi("PopularItem");
+
+const DashboardStatsSchema = z
+  .object({
+    totalRevenue: z.string(),
+    totalOrders: z.number().int(),
+    pendingOrders: z.number().int(),
+    completedToday: z.number().int(),
+    popularItems: z.array(PopularItemSchema),
+  })
+  .openapi("DashboardStats");
+
+const RestaurantSettingsSchema = z
+  .object({
+    id: z.string().uuid(),
+    prepTimeMinutes: z.number().int(),
+    autoAcceptOrders: z.boolean(),
+    serviceAvailable: z.boolean(),
+    taxRate: z.string(),
+    openingTime: z.string().nullable(),
+    closingTime: z.string().nullable(),
+    updatedAt: z.string().datetime(),
+  })
+  .openapi("RestaurantSettings");
+
+const UpdateRestaurantSettingsSchema = z
+  .object({
+    prepTimeMinutes: z.number().int().min(5).max(120).optional(),
+    autoAcceptOrders: z.boolean().optional(),
+    serviceAvailable: z.boolean().optional(),
+    taxRate: z
+      .string()
+      .regex(/^\d+\.\d{4}$/)
+      .optional(),
+    openingTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional(),
+    closingTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional(),
+  })
+  .openapi("UpdateRestaurantSettings");
+
+const DEFAULT_RESTAURANT_SETTINGS = {
+  id: "00000000-0000-0000-0000-000000000000",
+  prepTimeMinutes: 15,
+  autoAcceptOrders: true,
+  serviceAvailable: true,
+  taxRate: "0.0800",
+  openingTime: null as string | null,
+  closingTime: null as string | null,
+  updatedAt: new Date(0),
+};
+
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
 }
@@ -130,6 +356,123 @@ function serializeMenuItem(row: MenuItem) {
     stockQuantity: row.stockQuantity,
     imageUrl: row.imageUrl,
     createdAt: toIso(row.createdAt),
+    updatedAt: toIso(row.updatedAt),
+  };
+}
+
+function serializeOrder(row: Order) {
+  return {
+    id: row.id,
+    customerId: row.customerId,
+    status: row.status,
+    subtotal: row.subtotal,
+    tax: row.tax,
+    total: row.total,
+    notes: row.notes,
+    createdAt: toIso(row.createdAt),
+    updatedAt: toIso(row.updatedAt),
+  };
+}
+
+function serializeOrderCustomer(row: {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+  };
+}
+
+type OrderLineRow = {
+  id: string;
+  menuItemId: string;
+  quantity: number;
+  priceAtTime: string;
+  subtotal: string;
+  notes: string | null;
+  menuItem: {
+    id: string;
+    name: string;
+  };
+};
+
+function serializeOrderWithDetails(
+  order: Order,
+  customer: { id: string; name: string; email: string; phone: string | null },
+  items: OrderLineRow[],
+) {
+  return {
+    ...serializeOrder(order),
+    customer: serializeOrderCustomer(customer),
+    orderItems: items,
+  };
+}
+
+function money(value: number): string {
+  return value.toFixed(2);
+}
+
+function serializeCustomer(row: {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  totalOrders: number;
+  totalSpent: string;
+  createdAt: Date | string;
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    totalOrders: row.totalOrders,
+    totalSpent: row.totalSpent,
+    createdAt: toIso(row.createdAt),
+  };
+}
+
+function serializeCustomerOrderSummary(row: {
+  id: string;
+  status: Order["status"];
+  total: string;
+  createdAt: Date | string;
+}) {
+  return {
+    id: row.id,
+    status: row.status,
+    total: row.total,
+    createdAt: toIso(row.createdAt),
+  };
+}
+
+function toCount(value: number | bigint | string | null | undefined): number {
+  return Number(value ?? 0);
+}
+
+function serializeRestaurantSettings(row: {
+  id: string;
+  prepTimeMinutes: number;
+  autoAcceptOrders: boolean;
+  serviceAvailable: boolean;
+  taxRate: string;
+  openingTime: string | null;
+  closingTime: string | null;
+  updatedAt: Date | string;
+}) {
+  return {
+    id: row.id,
+    prepTimeMinutes: row.prepTimeMinutes,
+    autoAcceptOrders: row.autoAcceptOrders,
+    serviceAvailable: row.serviceAvailable,
+    taxRate: row.taxRate,
+    openingTime: row.openingTime,
+    closingTime: row.closingTime,
     updatedAt: toIso(row.updatedAt),
   };
 }
@@ -317,6 +660,149 @@ const deleteMenuItemRoute = createRoute({
   },
 });
 
+const createOrderRoute = createRoute({
+  method: "post",
+  path: "/api/orders",
+  tags: ["orders"],
+  summary: "Create a new order",
+  request: {
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: CreateOrderSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    201: jsonContent(OrderSchema, "Order created"),
+    400: jsonContent(ErrorSchema, "Validation error"),
+    404: jsonContent(ErrorSchema, "Customer not found"),
+    500: jsonContent(ErrorSchema, "Server error"),
+  },
+});
+
+const listOrdersRoute = createRoute({
+  method: "get",
+  path: "/api/orders",
+  tags: ["orders"],
+  summary: "List orders with optional filters",
+  request: {
+    query: ListOrdersQuerySchema,
+  },
+  responses: {
+    200: jsonContent(z.array(OrderWithDetailsSchema), "Orders"),
+    400: jsonContent(ErrorSchema, "Invalid query"),
+  },
+});
+
+const getOrderRoute = createRoute({
+  method: "get",
+  path: "/api/orders/{id}",
+  tags: ["orders"],
+  summary: "Get order details",
+  request: {
+    params: IdParamSchema,
+  },
+  responses: {
+    200: jsonContent(OrderWithDetailsSchema, "Order found"),
+    404: jsonContent(ErrorSchema, "Order not found"),
+  },
+});
+
+const updateOrderStatusRoute = createRoute({
+  method: "patch",
+  path: "/api/orders/{id}/status",
+  tags: ["orders"],
+  summary: "Update order status with validation",
+  request: {
+    params: IdParamSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: UpdateOrderStatusSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: jsonContent(OrderWithDetailsSchema, "Order status updated"),
+    400: jsonContent(ErrorSchema, "Invalid status transition"),
+    404: jsonContent(ErrorSchema, "Order not found"),
+  },
+});
+
+const listCustomersRoute = createRoute({
+  method: "get",
+  path: "/api/customers",
+  tags: ["customers"],
+  summary: "List customers with order stats",
+  request: {
+    query: ListCustomersQuerySchema,
+  },
+  responses: {
+    200: jsonContent(z.array(CustomerListItemSchema), "Customers"),
+    400: jsonContent(ErrorSchema, "Invalid query"),
+  },
+});
+
+const getCustomerRoute = createRoute({
+  method: "get",
+  path: "/api/customers/{id}",
+  tags: ["customers"],
+  summary: "Get customer details",
+  request: {
+    params: IdParamSchema,
+  },
+  responses: {
+    200: jsonContent(CustomerDetailSchema, "Customer found"),
+    404: jsonContent(ErrorSchema, "Customer not found"),
+  },
+});
+
+const dashboardStatsRoute = createRoute({
+  method: "get",
+  path: "/api/dashboard/stats",
+  tags: ["dashboard"],
+  summary: "Get KPI statistics for home page",
+  responses: {
+    200: jsonContent(DashboardStatsSchema, "Dashboard KPIs"),
+  },
+});
+
+const getSettingsRoute = createRoute({
+  method: "get",
+  path: "/api/settings",
+  tags: ["settings"],
+  summary: "Get restaurant settings",
+  responses: {
+    200: jsonContent(RestaurantSettingsSchema, "Restaurant settings"),
+  },
+});
+
+const updateSettingsRoute = createRoute({
+  method: "patch",
+  path: "/api/settings",
+  tags: ["settings"],
+  summary: "Update restaurant settings",
+  request: {
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: UpdateRestaurantSettingsSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: jsonContent(RestaurantSettingsSchema, "Settings updated"),
+    400: jsonContent(ErrorSchema, "Invalid request body"),
+  },
+});
+
 const app = new OpenAPIHono<{ Bindings: Bindings; Variables: Variables }>({
   defaultHook: (result, c) => {
     if (!result.success) {
@@ -335,7 +821,7 @@ app.use(
   "/api/*",
   cors({
     origin: "*",
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type"],
   }),
 );
@@ -520,6 +1006,495 @@ app.openapi(deleteMenuItemRoute, async (c) => {
   }
 
   return c.json({ message: "Menu item deleted", id: row.id }, 200);
+});
+
+app.openapi(createOrderRoute, async (c) => {
+  const db = c.get("db");
+  const body = c.req.valid("json");
+
+  try {
+    const [customer] = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.id, body.customerId))
+      .limit(1);
+
+    if (!customer) {
+      return c.json(
+        { error: "Not Found", message: "Customer not found" },
+        404,
+      );
+    }
+
+    const menuItemIds = [...new Set(body.items.map((item) => item.menuItemId))];
+    const referencedItems = await db
+      .select()
+      .from(menuItems)
+      .where(inArray(menuItems.id, menuItemIds));
+
+    const foundIds = new Set(referencedItems.map((item) => item.id));
+    const missingIds = menuItemIds.filter((id) => !foundIds.has(id));
+
+    if (missingIds.length > 0) {
+      return c.json(
+        {
+          error: "Bad Request",
+          message: `Menu items not found: ${missingIds.join(", ")}`,
+        },
+        400,
+      );
+    }
+
+    const unavailableItems = referencedItems.filter((item) => !item.isAvailable);
+
+    if (unavailableItems.length > 0) {
+      return c.json(
+        {
+          error: "Bad Request",
+          message: `Menu items unavailable: ${unavailableItems
+            .map((item) => item.id)
+            .join(", ")}`,
+        },
+        400,
+      );
+    }
+
+    const itemsById = new Map(
+      referencedItems.map((item) => [item.id, item] as const),
+    );
+    const lineItems = body.items.map((item) => {
+      const menuItem = itemsById.get(item.menuItemId);
+
+      if (!menuItem) {
+        throw new Error(`Menu item missing after validation: ${item.menuItemId}`);
+      }
+
+      const priceAtTime = Number(menuItem.price);
+      const itemSubtotal = priceAtTime * item.quantity;
+
+      return {
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        notes: item.notes,
+        priceAtTime: money(priceAtTime),
+        subtotal: money(itemSubtotal),
+      };
+    });
+
+    const orderSubtotal = lineItems.reduce(
+      (sum, item) => sum + Number(item.subtotal),
+      0,
+    );
+    const tax = orderSubtotal * 0.08;
+    const total = orderSubtotal + tax;
+
+    const [order] = await db
+      .insert(orders)
+      .values({
+        customerId: body.customerId,
+        status: "pending",
+        subtotal: money(orderSubtotal),
+        tax: money(tax),
+        total: money(total),
+        notes: body.notes,
+      })
+      .returning();
+
+    if (!order) {
+      return c.json(
+        { error: "Internal Server Error", message: "Failed to create order" },
+        500,
+      );
+    }
+
+    await db.insert(orderItems).values(
+      lineItems.map((item) => ({
+        ...item,
+        orderId: order.id,
+      })),
+    );
+
+    await db
+      .update(customers)
+      .set({
+        totalOrders: customer.totalOrders + 1,
+        totalSpent: money(Number(customer.totalSpent) + Number(order.total)),
+      })
+      .where(eq(customers.id, customer.id));
+
+    return c.json(serializeOrder(order), 201);
+  } catch (error) {
+    console.error(error);
+    return c.json(
+      {
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : "Unexpected error",
+      },
+      500,
+    );
+  }
+});
+
+app.openapi(listOrdersRoute, async (c) => {
+  const db = c.get("db");
+  const { status, customerId, limit, offset } = c.req.valid("query");
+
+  const filters = [
+    status ? eq(orders.status, status) : undefined,
+    customerId ? eq(orders.customerId, customerId) : undefined,
+  ].filter((filter): filter is NonNullable<typeof filter> => filter !== undefined);
+
+  const rows = await db
+    .select({
+      order: orders,
+      customer: customers,
+    })
+    .from(orders)
+    .innerJoin(customers, eq(orders.customerId, customers.id))
+    .where(filters.length > 0 ? and(...filters) : undefined)
+    .orderBy(desc(orders.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const result = [];
+
+  for (const row of rows) {
+    const itemRows = await db
+      .select({
+        orderItem: orderItems,
+        menuItem: menuItems,
+      })
+      .from(orderItems)
+      .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
+      .where(eq(orderItems.orderId, row.order.id));
+
+    result.push(
+      serializeOrderWithDetails(
+        row.order,
+        row.customer,
+        itemRows.map((itemRow) => ({
+          id: itemRow.orderItem.id,
+          menuItemId: itemRow.orderItem.menuItemId,
+          quantity: itemRow.orderItem.quantity,
+          priceAtTime: itemRow.orderItem.priceAtTime,
+          subtotal: itemRow.orderItem.subtotal,
+          notes: itemRow.orderItem.notes,
+          menuItem: {
+            id: itemRow.menuItem.id,
+            name: itemRow.menuItem.name,
+          },
+        })),
+      ),
+    );
+  }
+
+  return c.json(result, 200);
+});
+
+app.openapi(getOrderRoute, async (c) => {
+  const db = c.get("db");
+  const { id } = c.req.valid("param");
+
+  const [row] = await db
+    .select({
+      order: orders,
+      customer: customers,
+    })
+    .from(orders)
+    .innerJoin(customers, eq(orders.customerId, customers.id))
+    .where(eq(orders.id, id))
+    .limit(1);
+
+  if (!row) {
+    return c.json({ error: "Not Found", message: "Order not found" }, 404);
+  }
+
+  const itemRows = await db
+    .select({
+      orderItem: orderItems,
+      menuItem: menuItems,
+    })
+    .from(orderItems)
+    .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
+    .where(inArray(orderItems.orderId, [row.order.id]));
+
+  return c.json(
+    serializeOrderWithDetails(
+      row.order,
+      row.customer,
+      itemRows.map((itemRow) => ({
+        id: itemRow.orderItem.id,
+        menuItemId: itemRow.orderItem.menuItemId,
+        quantity: itemRow.orderItem.quantity,
+        priceAtTime: itemRow.orderItem.priceAtTime,
+        subtotal: itemRow.orderItem.subtotal,
+        notes: itemRow.orderItem.notes,
+        menuItem: {
+          id: itemRow.menuItem.id,
+          name: itemRow.menuItem.name,
+        },
+      })),
+    ),
+    200,
+  );
+});
+
+app.openapi(updateOrderStatusRoute, async (c) => {
+  const db = c.get("db");
+  const { id } = c.req.valid("param");
+  const { status: nextStatus } = c.req.valid("json");
+
+  const [existing] = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.id, id))
+    .limit(1);
+
+  if (!existing) {
+    return c.json({ error: "Not Found", message: "Order not found" }, 404);
+  }
+
+  const currentStatus = existing.status;
+
+  if (currentStatus === "completed" || currentStatus === "cancelled") {
+    return c.json(
+      {
+        error: "Bad Request",
+        message: "Order is already in final state",
+      },
+      400,
+    );
+  }
+
+  if (!isAllowedStatusTransition(currentStatus, nextStatus)) {
+    return c.json(
+      {
+        error: "Bad Request",
+        message: `Invalid status transition from ${currentStatus} to ${nextStatus}`,
+      },
+      400,
+    );
+  }
+
+  const [updated] = await db
+    .update(orders)
+    .set({ status: nextStatus, updatedAt: new Date() })
+    .where(eq(orders.id, id))
+    .returning();
+
+  if (!updated) {
+    return c.json({ error: "Not Found", message: "Order not found" }, 404);
+  }
+
+  const [row] = await db
+    .select({
+      order: orders,
+      customer: customers,
+    })
+    .from(orders)
+    .innerJoin(customers, eq(orders.customerId, customers.id))
+    .where(eq(orders.id, updated.id))
+    .limit(1);
+
+  if (!row) {
+    return c.json({ error: "Not Found", message: "Order not found" }, 404);
+  }
+
+  const itemRows = await db
+    .select({
+      orderItem: orderItems,
+      menuItem: menuItems,
+    })
+    .from(orderItems)
+    .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
+    .where(eq(orderItems.orderId, row.order.id));
+
+  return c.json(
+    serializeOrderWithDetails(
+      row.order,
+      row.customer,
+      itemRows.map((itemRow) => ({
+        id: itemRow.orderItem.id,
+        menuItemId: itemRow.orderItem.menuItemId,
+        quantity: itemRow.orderItem.quantity,
+        priceAtTime: itemRow.orderItem.priceAtTime,
+        subtotal: itemRow.orderItem.subtotal,
+        notes: itemRow.orderItem.notes,
+        menuItem: {
+          id: itemRow.menuItem.id,
+          name: itemRow.menuItem.name,
+        },
+      })),
+    ),
+    200,
+  );
+});
+
+app.openapi(listCustomersRoute, async (c) => {
+  const db = c.get("db");
+  const { limit, offset } = c.req.valid("query");
+
+  const customerRows = await db
+    .select()
+    .from(customers)
+    .orderBy(desc(customers.totalSpent))
+    .limit(limit)
+    .offset(offset);
+
+  const result = [];
+
+  for (const customer of customerRows) {
+    const recentOrders = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.customerId, customer.id))
+      .orderBy(desc(orders.createdAt))
+      .limit(5);
+
+    result.push({
+      ...serializeCustomer(customer),
+      recentOrders: recentOrders.map(serializeCustomerOrderSummary),
+    });
+  }
+
+  return c.json(result, 200);
+});
+
+app.openapi(getCustomerRoute, async (c) => {
+  const db = c.get("db");
+  const { id } = c.req.valid("param");
+
+  const [customer] = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.id, id))
+    .limit(1);
+
+  if (!customer) {
+    return c.json({ error: "Not Found", message: "Customer not found" }, 404);
+  }
+
+  const customerOrders = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.customerId, customer.id))
+    .orderBy(desc(orders.createdAt));
+
+  return c.json(
+    {
+      ...serializeCustomer(customer),
+      orders: customerOrders.map(serializeCustomerOrderSummary),
+    },
+    200,
+  );
+});
+
+app.openapi(dashboardStatsRoute, async (c) => {
+  const db = c.get("db");
+
+  const [revenueRow] = await db
+    .select({ totalRevenue: sum(orders.total) })
+    .from(orders)
+    .where(eq(orders.status, "completed"));
+
+  const [totalOrdersRow] = await db.select({ totalOrders: count() }).from(orders);
+
+  const [pendingOrdersRow] = await db
+    .select({ pendingOrders: count() })
+    .from(orders)
+    .where(eq(orders.status, "pending"));
+
+  const [completedTodayRow] = await db
+    .select({ completedToday: count() })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.status, "completed"),
+        sql`${orders.createdAt}::date = CURRENT_DATE`,
+      ),
+    );
+
+  const popularItemRows = await db
+    .select({
+      menuItemId: orderItems.menuItemId,
+      menuItemName: menuItems.name,
+      orderCount: count(),
+    })
+    .from(orderItems)
+    .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
+    .groupBy(orderItems.menuItemId, menuItems.name)
+    .orderBy(desc(count()))
+    .limit(5);
+
+  return c.json(
+    {
+      totalRevenue: revenueRow?.totalRevenue ?? "0",
+      totalOrders: toCount(totalOrdersRow?.totalOrders),
+      pendingOrders: toCount(pendingOrdersRow?.pendingOrders),
+      completedToday: toCount(completedTodayRow?.completedToday),
+      popularItems: popularItemRows.map((row) => ({
+        menuItemId: row.menuItemId,
+        menuItemName: row.menuItemName,
+        orderCount: toCount(row.orderCount),
+      })),
+    },
+    200,
+  );
+});
+
+app.openapi(getSettingsRoute, async (c) => {
+  const db = c.get("db");
+  const [row] = await db.select().from(restaurantSettings).limit(1);
+
+  if (!row) {
+    return c.json(serializeRestaurantSettings(DEFAULT_RESTAURANT_SETTINGS), 200);
+  }
+
+  return c.json(serializeRestaurantSettings(row), 200);
+});
+
+app.openapi(updateSettingsRoute, async (c) => {
+  const db = c.get("db");
+  const body = c.req.valid("json");
+  const [existing] = await db.select().from(restaurantSettings).limit(1);
+
+  if (!existing) {
+    const [created] = await db
+      .insert(restaurantSettings)
+      .values({
+        prepTimeMinutes: body.prepTimeMinutes ?? 15,
+        autoAcceptOrders: body.autoAcceptOrders ?? true,
+        serviceAvailable: body.serviceAvailable ?? true,
+        taxRate: body.taxRate ?? "0.0800",
+        openingTime: body.openingTime,
+        closingTime: body.closingTime,
+      })
+      .returning();
+
+    if (!created) {
+      return c.json(
+        { error: "Internal Server Error", message: "Failed to create settings" },
+        500,
+      );
+    }
+
+    return c.json(serializeRestaurantSettings(created), 200);
+  }
+
+  const [updated] = await db
+    .update(restaurantSettings)
+    .set({ ...body, updatedAt: new Date() })
+    .where(eq(restaurantSettings.id, existing.id))
+    .returning();
+
+  if (!updated) {
+    return c.json(
+      { error: "Internal Server Error", message: "Failed to update settings" },
+      500,
+    );
+  }
+
+  return c.json(serializeRestaurantSettings(updated), 200);
 });
 
 app.doc("/api/openapi.json", {
