@@ -1,6 +1,6 @@
 import { swaggerUI } from "@hono/swagger-ui";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq, asc, inArray, desc, and, sql, sum, count } from "drizzle-orm";
+import { eq, ne, asc, inArray, desc, and, or, ilike, sql, sum, count } from "drizzle-orm";
 import { cors } from "hono/cors";
 import {
   createDb,
@@ -125,6 +125,7 @@ const CreateOrderSchema = z
     }),
     items: z.array(CreateOrderItemSchema).min(1),
     notes: z.string().optional(),
+    orderType: z.enum(["dine_in", "pickup", "delivery"]).optional(),
   })
   .openapi("CreateOrder");
 
@@ -167,11 +168,13 @@ const OrderSchema = z
     id: z.string().uuid(),
     customerId: z.string().uuid(),
     status: OrderStatusSchema,
+    orderType: z.enum(["dine_in", "pickup", "delivery"]),
     subtotal: z.string(),
     tax: z.string(),
     total: z.string(),
     notes: z.string().nullable(),
     createdAt: z.string().datetime(),
+    completedAt: z.string().datetime().nullable(),
     updatedAt: z.string().datetime(),
   })
   .openapi("Order");
@@ -223,6 +226,30 @@ const ListOrdersQuerySchema = z.object({
     .openapi({
       param: { name: "customerId", in: "query" },
     }),
+  search: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "search", in: "query" },
+    }),
+  sortBy: z
+    .enum(["createdAt", "total"])
+    .optional()
+    .openapi({
+      param: { name: "sortBy", in: "query" },
+    }),
+  sortOrder: z
+    .enum(["asc", "desc"])
+    .optional()
+    .openapi({
+      param: { name: "sortOrder", in: "query" },
+    }),
+  dateFilter: z
+    .enum(["today", "last_7_days", "last_30_days", "all"])
+    .optional()
+    .openapi({
+      param: { name: "dateFilter", in: "query" },
+    }),
   limit: z.coerce.number().int().min(1).max(100).default(50).openapi({
     param: { name: "limit", in: "query" },
   }),
@@ -244,6 +271,7 @@ const CustomerOrderSummarySchema = z
   .object({
     id: z.string().uuid(),
     status: OrderStatusSchema,
+    orderType: z.enum(["dine_in", "pickup", "delivery"]),
     total: z.string(),
     createdAt: z.string().datetime(),
   })
@@ -283,6 +311,7 @@ const DashboardStatsSchema = z
     totalOrders: z.number().int(),
     pendingOrders: z.number().int(),
     completedToday: z.number().int(),
+    averageOrderValue: z.string(),
     popularItems: z.array(PopularItemSchema),
   })
   .openapi("DashboardStats");
@@ -290,6 +319,7 @@ const DashboardStatsSchema = z
 const RestaurantSettingsSchema = z
   .object({
     id: z.string().uuid(),
+    restaurantName: z.string(),
     prepTimeMinutes: z.number().int(),
     autoAcceptOrders: z.boolean(),
     serviceAvailable: z.boolean(),
@@ -302,6 +332,7 @@ const RestaurantSettingsSchema = z
 
 const UpdateRestaurantSettingsSchema = z
   .object({
+    restaurantName: z.string().min(1).max(120).optional(),
     prepTimeMinutes: z.number().int().min(5).max(120).optional(),
     autoAcceptOrders: z.boolean().optional(),
     serviceAvailable: z.boolean().optional(),
@@ -322,6 +353,7 @@ const UpdateRestaurantSettingsSchema = z
 
 const DEFAULT_RESTAURANT_SETTINGS = {
   id: "00000000-0000-0000-0000-000000000000",
+  restaurantName: "Ody Restaurant",
   prepTimeMinutes: 15,
   autoAcceptOrders: true,
   serviceAvailable: true,
@@ -365,11 +397,13 @@ function serializeOrder(row: Order) {
     id: row.id,
     customerId: row.customerId,
     status: row.status,
+    orderType: row.orderType,
     subtotal: row.subtotal,
     tax: row.tax,
     total: row.total,
     notes: row.notes,
     createdAt: toIso(row.createdAt),
+    completedAt: row.completedAt ? toIso(row.completedAt) : null,
     updatedAt: toIso(row.updatedAt),
   };
 }
@@ -440,12 +474,14 @@ function serializeCustomer(row: {
 function serializeCustomerOrderSummary(row: {
   id: string;
   status: Order["status"];
+  orderType: Order["orderType"];
   total: string;
   createdAt: Date | string;
 }) {
   return {
     id: row.id,
     status: row.status,
+    orderType: row.orderType,
     total: row.total,
     createdAt: toIso(row.createdAt),
   };
@@ -457,6 +493,7 @@ function toCount(value: number | bigint | string | null | undefined): number {
 
 function serializeRestaurantSettings(row: {
   id: string;
+  restaurantName: string;
   prepTimeMinutes: number;
   autoAcceptOrders: boolean;
   serviceAvailable: boolean;
@@ -467,6 +504,7 @@ function serializeRestaurantSettings(row: {
 }) {
   return {
     id: row.id,
+    restaurantName: row.restaurantName,
     prepTimeMinutes: row.prepTimeMinutes,
     autoAcceptOrders: row.autoAcceptOrders,
     serviceAvailable: row.serviceAvailable,
@@ -1093,6 +1131,7 @@ app.openapi(createOrderRoute, async (c) => {
       .values({
         customerId: body.customerId,
         status: "pending",
+        orderType: body.orderType ?? "dine_in",
         subtotal: money(orderSubtotal),
         tax: money(tax),
         total: money(total),
@@ -1135,14 +1174,60 @@ app.openapi(createOrderRoute, async (c) => {
   }
 });
 
+function dateFilterCondition(
+  dateFilter: "today" | "last_7_days" | "last_30_days" | "all" | undefined,
+  status: "pending" | "preparing" | "ready" | "completed" | "cancelled" | undefined,
+) {
+  if (!dateFilter || dateFilter === "all") {
+    return undefined;
+  }
+
+  if (status === "completed") {
+    if (dateFilter === "today") {
+      return sql`COALESCE(${orders.completedAt}, ${orders.createdAt})::date = CURRENT_DATE`;
+    }
+
+    if (dateFilter === "last_7_days") {
+      return sql`COALESCE(${orders.completedAt}, ${orders.createdAt}) >= NOW() - INTERVAL '7 days'`;
+    }
+
+    return sql`COALESCE(${orders.completedAt}, ${orders.createdAt}) >= NOW() - INTERVAL '30 days'`;
+  }
+
+  if (dateFilter === "today") {
+    return sql`${orders.createdAt}::date = CURRENT_DATE`;
+  }
+
+  if (dateFilter === "last_7_days") {
+    return sql`${orders.createdAt} >= NOW() - INTERVAL '7 days'`;
+  }
+
+  return sql`${orders.createdAt} >= NOW() - INTERVAL '30 days'`;
+}
+
 app.openapi(listOrdersRoute, async (c) => {
   const db = c.get("db");
-  const { status, customerId, limit, offset } = c.req.valid("query");
+  const { status, customerId, search, sortBy, sortOrder, dateFilter, limit, offset } =
+    c.req.valid("query");
+
+  const trimmedSearch = search?.trim();
+  const searchPattern = trimmedSearch ? `%${trimmedSearch}%` : undefined;
 
   const filters = [
     status ? eq(orders.status, status) : undefined,
     customerId ? eq(orders.customerId, customerId) : undefined,
+    searchPattern
+      ? or(
+          ilike(customers.name, searchPattern),
+          sql`CAST(${orders.id} AS text) ILIKE ${searchPattern}`,
+        )
+      : undefined,
+    dateFilterCondition(dateFilter, status),
   ].filter((filter): filter is NonNullable<typeof filter> => filter !== undefined);
+
+  const sortColumn = sortBy === "total" ? orders.total : orders.createdAt;
+  const orderBy =
+    (sortOrder ?? "asc") === "desc" ? desc(sortColumn) : asc(sortColumn);
 
   const rows = await db
     .select({
@@ -1152,7 +1237,7 @@ app.openapi(listOrdersRoute, async (c) => {
     .from(orders)
     .innerJoin(customers, eq(orders.customerId, customers.id))
     .where(filters.length > 0 ? and(...filters) : undefined)
-    .orderBy(desc(orders.createdAt))
+    .orderBy(orderBy)
     .limit(limit)
     .offset(offset);
 
@@ -1278,7 +1363,11 @@ app.openapi(updateOrderStatusRoute, async (c) => {
 
   const [updated] = await db
     .update(orders)
-    .set({ status: nextStatus, updatedAt: new Date() })
+    .set({
+      status: nextStatus,
+      updatedAt: new Date(),
+      ...(nextStatus === "completed" ? { completedAt: new Date() } : {}),
+    })
     .where(eq(orders.id, id))
     .returning();
 
@@ -1391,13 +1480,21 @@ app.openapi(getCustomerRoute, async (c) => {
 
 app.openapi(dashboardStatsRoute, async (c) => {
   const db = c.get("db");
+  const placedToday = sql`${orders.createdAt}::date = CURRENT_DATE`;
+  const completedTodayCondition = and(
+    eq(orders.status, "completed"),
+    sql`COALESCE(${orders.completedAt}, ${orders.createdAt})::date = CURRENT_DATE`,
+  );
 
   const [revenueRow] = await db
     .select({ totalRevenue: sum(orders.total) })
     .from(orders)
-    .where(eq(orders.status, "completed"));
+    .where(completedTodayCondition);
 
-  const [totalOrdersRow] = await db.select({ totalOrders: count() }).from(orders);
+  const [totalOrdersRow] = await db
+    .select({ totalOrders: count() })
+    .from(orders)
+    .where(and(placedToday, ne(orders.status, "cancelled")));
 
   const [pendingOrdersRow] = await db
     .select({ pendingOrders: count() })
@@ -1407,12 +1504,15 @@ app.openapi(dashboardStatsRoute, async (c) => {
   const [completedTodayRow] = await db
     .select({ completedToday: count() })
     .from(orders)
-    .where(
-      and(
-        eq(orders.status, "completed"),
-        sql`${orders.createdAt}::date = CURRENT_DATE`,
-      ),
-    );
+    .where(completedTodayCondition);
+
+  const totalOrders = toCount(totalOrdersRow?.totalOrders);
+  const completedToday = toCount(completedTodayRow?.completedToday);
+  const totalRevenue = revenueRow?.totalRevenue ?? "0";
+  const averageOrderValue =
+    completedToday > 0
+      ? money(Number(totalRevenue) / completedToday)
+      : "0.00";
 
   const popularItemRows = await db
     .select({
@@ -1421,17 +1521,20 @@ app.openapi(dashboardStatsRoute, async (c) => {
       orderCount: count(),
     })
     .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
     .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
+    .where(placedToday)
     .groupBy(orderItems.menuItemId, menuItems.name)
     .orderBy(desc(count()))
     .limit(5);
 
   return c.json(
     {
-      totalRevenue: revenueRow?.totalRevenue ?? "0",
-      totalOrders: toCount(totalOrdersRow?.totalOrders),
+      totalRevenue,
+      totalOrders,
       pendingOrders: toCount(pendingOrdersRow?.pendingOrders),
-      completedToday: toCount(completedTodayRow?.completedToday),
+      completedToday,
+      averageOrderValue,
       popularItems: popularItemRows.map((row) => ({
         menuItemId: row.menuItemId,
         menuItemName: row.menuItemName,
@@ -1462,6 +1565,7 @@ app.openapi(updateSettingsRoute, async (c) => {
     const [created] = await db
       .insert(restaurantSettings)
       .values({
+        restaurantName: body.restaurantName ?? "Ody Restaurant",
         prepTimeMinutes: body.prepTimeMinutes ?? 15,
         autoAcceptOrders: body.autoAcceptOrders ?? true,
         serviceAvailable: body.serviceAvailable ?? true,
@@ -1497,14 +1601,15 @@ app.openapi(updateSettingsRoute, async (c) => {
   return c.json(serializeRestaurantSettings(updated), 200);
 });
 
-app.doc("/api/openapi.json", {
-  openapi: "3.0.0",
+export const openAPIConfig = {
+  openapi: "3.0.0" as const,
   info: {
-    title: "Ody Menu API",
+    title: "Ody Restaurant API",
     version: "1.0.0",
-    description: "Restaurant menu management API",
   },
-});
+};
+
+app.doc("/api/openapi.json", openAPIConfig);
 
 app.get("/api/docs", swaggerUI({ url: "/api/openapi.json" }));
 

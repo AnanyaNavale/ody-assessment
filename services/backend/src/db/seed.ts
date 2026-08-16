@@ -17,6 +17,7 @@ import {
   orders,
   restaurantSettings,
   type DietaryTag,
+  type OrderType,
   type OrderStatus,
 } from "./index";
 
@@ -297,8 +298,7 @@ async function seed() {
   let createdOrderCount = 0;
   let createdItemCount = 0;
 
-  for (let index = 0; index < ORDER_COUNT; index += 1) {
-    const customer = pickOne(insertedCustomers);
+  async function createOrderForCustomer(customerId: string) {
     const selectedItems = pickN(existingMenuItems, randomInt(2, 5));
     const createdAt = randomRecentDate();
     const lineItems = selectedItems.map((menuItem) => {
@@ -322,17 +322,21 @@ async function seed() {
     const tax = subtotal * TAX_RATE;
     const total = subtotal + tax;
 
+    const status = randomStatus();
+    const orderType = pickOne<OrderType>(["dine_in", "pickup", "delivery"]);
     const [order] = await db
       .insert(orders)
       .values(
         insertOrderSchema.parse({
-          customerId: customer.id,
-          status: randomStatus(),
+          customerId,
+          status,
+          orderType,
           subtotal: money(subtotal),
           tax: money(tax),
           total: money(total),
           notes: maybe(pickOne(orderNotes), 0.4),
           createdAt,
+          completedAt: status === "completed" ? createdAt : null,
           updatedAt: createdAt,
         }),
       )
@@ -353,6 +357,16 @@ async function seed() {
 
     createdOrderCount += 1;
     createdItemCount += lineItems.length;
+  }
+
+  for (const customer of insertedCustomers) {
+    await createOrderForCustomer(customer.id);
+  }
+
+  const extraOrderCount = Math.max(0, ORDER_COUNT - insertedCustomers.length);
+
+  for (let index = 0; index < extraOrderCount; index += 1) {
+    await createOrderForCustomer(pickOne(insertedCustomers).id);
   }
 
   console.log(
@@ -383,6 +397,7 @@ async function seed() {
 
   await db.insert(restaurantSettings).values(
     insertRestaurantSettingsSchema.parse({
+      restaurantName: "Ody Restaurant",
       prepTimeMinutes: 15,
       autoAcceptOrders: true,
       serviceAvailable: true,

@@ -82,6 +82,12 @@ export const orderStatus = pgEnum("order_status", [
   "cancelled",
 ]);
 
+export const orderType = pgEnum("order_type", [
+  "dine_in",
+  "pickup",
+  "delivery",
+]);
+
 export const orders = pgTable(
   "orders",
   {
@@ -90,11 +96,13 @@ export const orders = pgTable(
       .notNull()
       .references(() => customers.id),
     status: orderStatus("status").notNull().default("pending"),
+    orderType: orderType("order_type").notNull().default("dine_in"),
     subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
     tax: numeric("tax", { precision: 10, scale: 2 }).notNull(),
     total: numeric("total", { precision: 10, scale: 2 }).notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => ({
@@ -121,6 +129,7 @@ export const orderItems = pgTable("order_items", {
 
 export const restaurantSettings = pgTable("restaurant_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
+  restaurantName: text("restaurant_name").notNull().default("Ody Restaurant"),
   prepTimeMinutes: integer("prep_time_minutes").notNull().default(15),
   autoAcceptOrders: boolean("auto_accept_orders").notNull().default(true),
   serviceAvailable: boolean("service_available").notNull().default(true),
@@ -172,4 +181,5 @@ export const selectRestaurantSettingsSchema =
   createSelectSchema(restaurantSettings);
 
 export type OrderStatus = (typeof orderStatus.enumValues)[number];
+export type OrderType = (typeof orderType.enumValues)[number];
 export type DietaryTag = (typeof dietaryTag.enumValues)[number];

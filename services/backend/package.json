@@ -16,6 +16,7 @@
     "db:seed": "tsx ./src/db/seed.ts",
     "clear:settings": "tsx ./src/db/clear-settings.ts",
     "test:order": "tsx ./src/test-order.ts",
+    "generate:openapi": "tsx ./src/generate-openapi.ts",
     "test": "echo 'Tests not configured yet'"
   },
   "dependencies": {

@@ -47,6 +47,7 @@ async function testOrder() {
       { menuItemId: secondItem.id, quantity: 2 },
     ],
     notes: "Test order",
+    orderType: "pickup",
   };
 
   console.log("Creating order for customer:", customer.name, customer.id);
@@ -90,6 +91,7 @@ async function testOrder() {
     id: createdOrder.id,
     customerId: createdOrder.customerId,
     status: createdOrder.status,
+    orderType: createdOrder.orderType,
     subtotal: createdOrder.subtotal,
     tax: createdOrder.tax,
     total: createdOrder.total,

@@ -1,0 +1,13 @@
+OVERALL
+[] Overall: Make tab bar thinner
+
+MENU
+[] Add drag and drop reorder for categories
+[] Add search bar for items
+
+ORDERS
+
+CRM
+[] CRM Detail: Make sort dropdown overlap list, not push list down
+
+SETTINGS

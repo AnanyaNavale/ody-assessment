@@ -33,12 +33,24 @@ function operationName(
   route: string,
   verb: string,
 ): string {
-  const resource = toPascalCase(
-    route
-      .replace(/\$\{[^}]+\}/g, "")
-      .replace(/\{[^}]+\}/g, "")
-      .replace(/:[^/]+/g, ""),
-  );
+  const normalizedRoute = route
+    .replace(/\$\{[^}]+\}/g, "")
+    .replace(/\{[^}]+\}/g, "")
+    .replace(/:[^/]+/g, "");
+
+  if (/\/status\/?$/.test(normalizedRoute)) {
+    return "updateOrderStatus";
+  }
+
+  if (/\/stats\/?$/.test(normalizedRoute)) {
+    return "getDashboardStats";
+  }
+
+  if (/\/settings\/?$/.test(normalizedRoute)) {
+    return verb === "get" ? "getSettings" : "updateSettings";
+  }
+
+  const resource = toPascalCase(normalizedRoute);
   const singular = singularize(resource);
   const summary = operation.summary ?? "";
   const isById =
@@ -81,7 +93,7 @@ function operationName(
 export default defineConfig({
   ody: {
     input: {
-      target: "http://localhost:8787/api/openapi.json",
+      target: "./packages/api-client/openapi.json",
     },
     output: {
       mode: "split",

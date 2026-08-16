@@ -22,6 +22,27 @@
       "when": 1786852385731,
       "tag": "0002_yellow_magik",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786856554337,
+      "tag": "0003_colorful_magik",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786905108718,
+      "tag": "0004_curious_lake",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786909766897,
+      "tag": "0005_cultured_steve_rogers",
+      "breakpoints": true
     }
   ]
 }
