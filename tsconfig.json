@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@ody/shared": ["packages/shared/src"],
+      "@ody/shared/*": ["packages/shared/src/*"],
+      "@ody/types": ["packages/types/src"],
+      "@ody/types/*": ["packages/types/src/*"],
+      "@ody/api-client": ["packages/api-client/src"],
+      "@ody/api-client/*": ["packages/api-client/src/*"]
+    }
+  }
+}

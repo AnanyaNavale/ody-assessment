@@ -1,0 +1,5 @@
+name = "ody-backend"
+compatibility_date = "2025-01-29"
+main = "src/index.ts"
+
+# Will connect to external Postgres via HTTP driver for Drizzle ORM

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": []
+    },
+    "test": {
+      "outputs": []
+    },
+    "gen:api": {
+      "outputs": ["packages/api-client/src/generated/**"]
+    },
+    "gen:contract": {
+      "outputs": ["packages/api-client/src/generated/**"]
+    }
+  }
+}

@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+web-build/
+*.tsbuildinfo
+
+# Expo
+.expo/
+.expo-shared/
+
+# Cloudflare Workers
+.wrangler/
+
+# Turborepo
+.turbo/
+
+# Environment
+.env*
+*.vars
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Generated API client
+packages/api-client/src/generated/
+
+# Coverage
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
