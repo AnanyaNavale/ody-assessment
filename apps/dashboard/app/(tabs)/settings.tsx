@@ -6,7 +6,8 @@ import {
 import { fonts } from "@ody/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useRouter, type Href } from "expo-router";
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import {
   Image,
   Platform,
@@ -17,6 +18,12 @@ import {
   View,
   type TextStyle,
 } from "react-native";
+import {
+  formsEqual,
+  hoursValidationMessage,
+  isSettingsSaveDisabled,
+  normalizeTime,
+} from "../../lib/settings-form";
 
 const palette = {
   page: "#ffe9e0",
@@ -68,8 +75,6 @@ const QUICK_FILLS = [
   { label: "All day", start: "09:00", end: "22:00" },
 ] as const;
 
-const TIME_PATTERN = /^\d{2}:\d{2}$/;
-
 type DayHours = {
   open: boolean;
   start: string;
@@ -83,6 +88,7 @@ type SettingsForm = {
   photoUri: string;
   prepTimeMinutes: number;
   autoAcceptOrders: boolean;
+  serviceAvailable: boolean;
   days: Record<(typeof DAYS)[number], DayHours>;
 };
 
@@ -103,33 +109,10 @@ function emptyDays(start: string, end: string): SettingsForm["days"] {
   ) as SettingsForm["days"];
 }
 
-function normalizeTime(value: string): string | undefined {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return undefined;
-  }
-
-  const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
-
-  if (!match) {
-    return undefined;
-  }
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-
-  if (hours > 23 || minutes > 59) {
-    return undefined;
-  }
-
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-}
-
 export default function SettingsScreen() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const settingsQuery = useGetSettings();
-  const kitchenOpen = settingsQuery.data?.serviceAvailable ?? true;
   const [form, setForm] = useState<SettingsForm>({
     restaurantName: SEEDED_PROFILE.restaurantName,
     address: SEEDED_PROFILE.address,
@@ -137,16 +120,21 @@ export default function SettingsScreen() {
     photoUri: "",
     prepTimeMinutes: 18,
     autoAcceptOrders: false,
+    serviceAvailable: true,
     days: emptyDays("09:00", "22:00"),
   });
+  const [baseline, setBaseline] = useState<SettingsForm>(form);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const formRef = useRef(form);
+  formRef.current = form;
 
   const updateSettings = useUpdateSettings({
     mutation: {
       onSuccess: async () => {
+        setBaseline(formRef.current);
         await queryClient.invalidateQueries({
           queryKey: getGetSettingsQueryKey(),
         });
@@ -168,15 +156,20 @@ export default function SettingsScreen() {
     const start = settingsQuery.data.openingTime ?? "09:00";
     const end = settingsQuery.data.closingTime ?? "22:00";
 
-    setForm((current) => ({
-      ...current,
-      restaurantName: settingsQuery.data.restaurantName || SEEDED_PROFILE.restaurantName,
-      address: current.address || SEEDED_PROFILE.address,
-      phone: current.phone || SEEDED_PROFILE.phone,
-      prepTimeMinutes: settingsQuery.data.prepTimeMinutes,
-      autoAcceptOrders: settingsQuery.data.autoAcceptOrders,
-      days: emptyDays(start, end),
-    }));
+    setForm((current) => {
+      const next = {
+        ...current,
+        restaurantName: settingsQuery.data.restaurantName || SEEDED_PROFILE.restaurantName,
+        address: current.address || SEEDED_PROFILE.address,
+        phone: current.phone || SEEDED_PROFILE.phone,
+        prepTimeMinutes: settingsQuery.data.prepTimeMinutes,
+        autoAcceptOrders: settingsQuery.data.autoAcceptOrders,
+        serviceAvailable: settingsQuery.data.serviceAvailable,
+        days: emptyDays(start, end),
+      };
+      setBaseline(next);
+      return next;
+    });
   }, [settingsQuery.data]);
 
   useEffect(() => {
@@ -189,30 +182,42 @@ export default function SettingsScreen() {
   }, [feedback]);
 
   const saving = updateSettings.isPending;
+  const isDirty = useMemo(() => !formsEqual(form, baseline), [form, baseline]);
   const disabled = saving || settingsQuery.isLoading;
+  const saveDisabled = isSettingsSaveDisabled({
+    saving,
+    loading: settingsQuery.isLoading,
+    isDirty,
+  });
+  const kitchenOpen = form.serviceAvailable;
 
   function save() {
     const restaurantName = form.restaurantName.trim() || SEEDED_PROFILE.restaurantName;
     const openDay = DAYS.map((day) => form.days[day]).find((day) => day.open);
+    const hoursError = hoursValidationMessage({
+      hasOpenDay: Boolean(openDay),
+      start: openDay?.start ?? "",
+      end: openDay?.end ?? "",
+    });
+
+    if (hoursError) {
+      setFeedback({ type: "error", message: hoursError });
+      return;
+    }
+
     const openingTime = normalizeTime(openDay?.start ?? "");
     const closingTime = normalizeTime(openDay?.end ?? "");
 
-    if (openDay && (!openingTime || !TIME_PATTERN.test(openingTime))) {
-      setFeedback({ type: "error", message: "Opening time must be in HH:MM format" });
-      return;
-    }
-
-    if (openDay && (!closingTime || !TIME_PATTERN.test(closingTime))) {
-      setFeedback({ type: "error", message: "Closing time must be in HH:MM format" });
-      return;
-    }
-
     setFeedback(null);
+    if (!isDirty) {
+      return;
+    }
     updateSettings.mutate({
       data: {
         restaurantName,
         prepTimeMinutes: form.prepTimeMinutes,
-        autoAcceptOrders: form.autoAcceptOrders,
+        autoAcceptOrders: form.serviceAvailable ? form.autoAcceptOrders : false,
+        serviceAvailable: form.serviceAvailable,
         ...(openingTime ? { openingTime } : {}),
         ...(closingTime ? { closingTime } : {}),
       },
@@ -427,12 +432,60 @@ export default function SettingsScreen() {
                 </View>
                 <RedToggle
                   value={form.autoAcceptOrders}
-                  disabled={disabled}
+                  disabled={disabled || !form.serviceAvailable}
                   onValueChange={(autoAcceptOrders) =>
                     setForm((current) => ({ ...current, autoAcceptOrders }))
                   }
                 />
               </View>
+              <View style={{ height: 1, backgroundColor: palette.hairline, marginVertical: 12 }} />
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
+                }}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ ...sans, fontSize: 14, fontFamily: fonts.sansSemiBold }}>
+                    Kitchen Open
+                  </Text>
+                  <Text style={{ ...sans, fontSize: 12, color: palette.muted }}>
+                    Pause incoming service when the kitchen is closed
+                  </Text>
+                </View>
+                <RedToggle
+                  value={form.serviceAvailable}
+                  disabled={disabled}
+                  onValueChange={(serviceAvailable) =>
+                    setForm((current) => ({
+                      ...current,
+                      serviceAvailable,
+                      autoAcceptOrders: serviceAvailable ? current.autoAcceptOrders : false,
+                    }))
+                  }
+                />
+              </View>
+              {!form.serviceAvailable ? (
+                <View
+                  style={{
+                    marginTop: 14,
+                    backgroundColor: "rgba(220, 38, 38, 0.08)",
+                    borderRadius: 12,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Ionicons name="alert-circle-outline" size={16} color={palette.down} />
+                  <Text style={{ ...sans, fontSize: 12, color: palette.down, flex: 1 }}>
+                    Kitchen is closed. New orders are paused and auto-accept is off until you reopen.
+                  </Text>
+                </View>
+              ) : null}
             </SectionCard>
           </View>
 
@@ -585,31 +638,47 @@ export default function SettingsScreen() {
           gap: 16,
         }}
       >
-        <Text style={{ ...sans, fontSize: 13, color: palette.muted, flex: 1 }}>
-          {feedback
-            ? feedback.message
-            : "Review your changes before saving."}
-        </Text>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={{ ...sans, fontSize: 13, color: palette.muted }}>
+            {feedback
+              ? feedback.message
+              : isDirty
+                ? "Review your changes before saving."
+                : "No unsaved changes."}
+          </Text>
+          <Pressable onPress={() => router.push("/design-system" as Href)}>
+            <Text
+              style={{
+                ...sans,
+                fontSize: 12,
+                fontFamily: fonts.sansMedium,
+                color: palette.red,
+              }}
+            >
+              Design system gallery
+            </Text>
+          </Pressable>
+        </View>
         <Pressable
           onPress={save}
-          disabled={disabled}
+          disabled={saveDisabled}
           style={{
             flexDirection: "row",
             alignItems: "center",
             gap: 8,
-            backgroundColor: disabled ? "#e5e7eb" : palette.red,
+            backgroundColor: saveDisabled ? "#e5e7eb" : palette.red,
             borderRadius: 99,
             paddingHorizontal: 18,
             paddingVertical: 12,
           }}
         >
-          <Ionicons name="save-outline" size={16} color={disabled ? "#9ca3af" : "#ffffff"} />
+          <Ionicons name="save-outline" size={16} color={saveDisabled ? "#9ca3af" : "#ffffff"} />
           <Text
             style={{
               ...sans,
               fontFamily: fonts.sansSemiBold,
               fontSize: 14,
-              color: disabled ? "#9ca3af" : "#ffffff",
+              color: saveDisabled ? "#9ca3af" : "#ffffff",
             }}
           >
             {saving ? "Saving..." : "Save Changes"}

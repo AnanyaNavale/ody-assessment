@@ -16,6 +16,7 @@ import {
   View,
   type TextStyle,
 } from "react-native";
+import { SegmentedToggleBar } from "../../components/SegmentedToggleBar";
 
 const palette = {
   page: "#ffe9e0",
@@ -560,26 +561,41 @@ export default function CustomerDetailScreen() {
                   selected={sort}
                   onSelect={setSort}
                 />
-                <View
-                  style={{
-                    flexDirection: "row",
-                    backgroundColor: palette.tabTrack,
-                    borderRadius: 99,
-                    padding: 4,
-                    gap: 2,
+                <SegmentedToggleBar
+                  selected={historyView}
+                  onSelect={setHistoryView}
+                  pillHeight={32}
+                  itemStyle={{
+                    width: 36,
+                    height: 32,
+                    paddingVertical: 0,
+                    paddingHorizontal: 0,
                   }}
-                >
-                  <ViewToggle
-                    icon="grid-outline"
-                    selected={historyView === "grid"}
-                    onPress={() => setHistoryView("grid")}
-                  />
-                  <ViewToggle
-                    icon="list-outline"
-                    selected={historyView === "list"}
-                    onPress={() => setHistoryView("list")}
-                  />
-                </View>
+                  items={[
+                    {
+                      value: "grid",
+                      accessibilityLabel: "Grid view",
+                      render: (selected) => (
+                        <Ionicons
+                          name="grid-outline"
+                          size={16}
+                          color={selected ? "#ffffff" : palette.muted}
+                        />
+                      ),
+                    },
+                    {
+                      value: "list",
+                      accessibilityLabel: "List view",
+                      render: (selected) => (
+                        <Ionicons
+                          name="list-outline"
+                          size={16}
+                          color={selected ? "#ffffff" : palette.muted}
+                        />
+                      ),
+                    },
+                  ]}
+                />
               </View>
             </View>
 
@@ -886,32 +902,6 @@ function FilterMenu<T extends string>({
         </View>
       ) : null}
     </View>
-  );
-}
-
-function ViewToggle({
-  icon,
-  selected,
-  onPress,
-}: {
-  icon: ComponentProps<typeof Ionicons>["name"];
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        width: 36,
-        height: 32,
-        borderRadius: 99,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: selected ? palette.red : "transparent",
-      }}
-    >
-      <Ionicons name={icon} size={16} color={selected ? "#ffffff" : palette.muted} />
-    </Pressable>
   );
 }
 

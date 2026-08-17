@@ -24,6 +24,10 @@ import {
   type ReactNode,
 } from "react";
 import {
+  SegmentedToggleBar,
+  segmentedTextTransition,
+} from "../../components/SegmentedToggleBar";
+import {
   Image,
   Modal,
   Platform,
@@ -893,58 +897,50 @@ export default function MenuScreen() {
             borderBottomColor: palette.hairline,
           }}
         >
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              backgroundColor: palette.tabTrack,
-              borderRadius: 99,
-              padding: 4,
-              gap: 2,
-            }}
-          >
-            {categories.map((category) => {
-              const selected = category.id === activeCategoryId;
-              const count = menuItems.filter((item) => item.categoryId === category.id).length;
+          {activeCategoryId ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <SegmentedToggleBar
+                selected={activeCategoryId}
+                onSelect={setSelectedCategoryId}
+                items={categories.map((category) => {
+                  const count = menuItems.filter((item) => item.categoryId === category.id).length;
 
-              return (
-                <Pressable
-                  key={category.id}
-                  onPress={() => setSelectedCategoryId(category.id)}
-                  style={{
-                    backgroundColor: selected ? palette.red : "transparent",
-                    borderRadius: 99,
-                    paddingVertical: 8,
-                    paddingHorizontal: 14,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <Text
-                    style={{
-                      ...sans,
-                      fontSize: 13,
-                      fontFamily: selected ? fonts.sansSemiBold : fonts.sansMedium,
-                      color: selected ? "#ffffff" : palette.muted,
-                    }}
-                  >
-                    {category.name}
-                  </Text>
-                  <Text
-                    style={{
-                      ...sans,
-                      fontSize: 11,
-                      fontFamily: fonts.sansBold,
-                      color: selected ? "rgba(255,255,255,0.85)" : "rgba(160, 112, 96, 0.6)",
-                    }}
-                  >
-                    {count}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+                  return {
+                    value: category.id,
+                    accessibilityLabel: category.name,
+                    render: (selected: boolean) => (
+                      <>
+                        <Text
+                          style={{
+                            ...sans,
+                            fontSize: 13,
+                            fontFamily: selected ? fonts.sansSemiBold : fonts.sansMedium,
+                            color: selected ? "#ffffff" : palette.muted,
+                            ...segmentedTextTransition,
+                          }}
+                        >
+                          {category.name}
+                        </Text>
+                        <Text
+                          style={{
+                            ...sans,
+                            fontSize: 11,
+                            fontFamily: fonts.sansBold,
+                            color: selected
+                              ? "rgba(255,255,255,0.85)"
+                              : "rgba(160, 112, 96, 0.6)",
+                            ...segmentedTextTransition,
+                          }}
+                        >
+                          {count}
+                        </Text>
+                      </>
+                    ),
+                  };
+                })}
+              />
+            </ScrollView>
+          ) : null}
           <View
             style={{
               flexDirection: "row",

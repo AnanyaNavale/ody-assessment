@@ -14,6 +14,17 @@ import {
   type MenuItem,
   type Order,
 } from "./db";
+import {
+  availabilityFromStock,
+  evaluateCreateOrder,
+  isAllowedStatusTransition,
+  money,
+} from "./order-rules";
+import {
+  CreateOrderSchema,
+  OrderSchema,
+  UpdateOrderStatusSchema,
+} from "./order-schemas";
 
 // Cloudflare Workers environment bindings
 type Bindings = {
@@ -110,25 +121,6 @@ const DeleteResultSchema = z
   })
   .openapi("DeleteResult");
 
-const CreateOrderItemSchema = z
-  .object({
-    menuItemId: z.string().uuid(),
-    quantity: z.number().int().min(1).max(99),
-    notes: z.string().optional(),
-  })
-  .openapi("CreateOrderItem");
-
-const CreateOrderSchema = z
-  .object({
-    customerId: z.string().uuid().openapi({
-      example: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    }),
-    items: z.array(CreateOrderItemSchema).min(1),
-    notes: z.string().optional(),
-    orderType: z.enum(["dine_in", "pickup", "delivery"]).optional(),
-  })
-  .openapi("CreateOrder");
-
 const OrderStatusSchema = z.enum([
   "pending",
   "preparing",
@@ -138,35 +130,6 @@ const OrderStatusSchema = z.enum([
 ]);
 
 type OrderStatusValue = z.infer<typeof OrderStatusSchema>;
-
-function isAllowedStatusTransition(
-  currentStatus: OrderStatusValue,
-  nextStatus: OrderStatusValue,
-): boolean {
-  return currentStatus !== nextStatus;
-}
-
-const UpdateOrderStatusSchema = z
-  .object({
-    status: OrderStatusSchema,
-  })
-  .openapi("UpdateOrderStatus");
-
-const OrderSchema = z
-  .object({
-    id: z.string().uuid(),
-    customerId: z.string().uuid(),
-    status: OrderStatusSchema,
-    orderType: z.enum(["dine_in", "pickup", "delivery"]),
-    subtotal: z.string(),
-    tax: z.string(),
-    total: z.string(),
-    notes: z.string().nullable(),
-    createdAt: z.string().datetime(),
-    completedAt: z.string().datetime().nullable(),
-    updatedAt: z.string().datetime(),
-  })
-  .openapi("Order");
 
 const OrderCustomerSchema = z
   .object({
@@ -438,10 +401,6 @@ function serializeCategory(row: Category) {
   };
 }
 
-function availabilityFromStock(stockQuantity: number | null): boolean {
-  return stockQuantity !== 0;
-}
-
 function invalidStockQuantity(
   stockQuantity: number | null | undefined,
 ): string | null {
@@ -561,10 +520,6 @@ function serializeOrderWithDetails(
     customer: serializeOrderCustomer(customer),
     orderItems: items,
   };
-}
-
-function money(value: number): string {
-  return value.toFixed(2);
 }
 
 function serializeCustomer(row: {
@@ -1289,11 +1244,35 @@ app.openapi(createOrderRoute, async (c) => {
   const body = c.req.valid("json");
 
   try {
+    const [settings] = await db.select().from(restaurantSettings).limit(1);
+    const serviceAvailable =
+      settings?.serviceAvailable ?? DEFAULT_RESTAURANT_SETTINGS.serviceAvailable;
+
     const [customer] = await db
       .select()
       .from(customers)
       .where(eq(customers.id, body.customerId))
       .limit(1);
+
+    const menuItemIds = [...new Set(body.items.map((item) => item.menuItemId))];
+    const referencedItems = await db
+      .select()
+      .from(menuItems)
+      .where(inArray(menuItems.id, menuItemIds));
+
+    const evaluation = evaluateCreateOrder({
+      customer,
+      menuItems: referencedItems,
+      items: body.items,
+      serviceAvailable,
+    });
+
+    if (!evaluation.ok) {
+      return c.json(
+        { error: evaluation.error, message: evaluation.message },
+        evaluation.status,
+      );
+    }
 
     if (!customer) {
       return c.json(
@@ -1302,69 +1281,7 @@ app.openapi(createOrderRoute, async (c) => {
       );
     }
 
-    const menuItemIds = [...new Set(body.items.map((item) => item.menuItemId))];
-    const referencedItems = await db
-      .select()
-      .from(menuItems)
-      .where(inArray(menuItems.id, menuItemIds));
-
-    const foundIds = new Set(referencedItems.map((item) => item.id));
-    const missingIds = menuItemIds.filter((id) => !foundIds.has(id));
-
-    if (missingIds.length > 0) {
-      return c.json(
-        {
-          error: "Bad Request",
-          message: `Menu items not found: ${missingIds.join(", ")}`,
-        },
-        400,
-      );
-    }
-
-    const unavailableItems = referencedItems.filter(
-      (item) => !availabilityFromStock(item.stockQuantity),
-    );
-
-    if (unavailableItems.length > 0) {
-      return c.json(
-        {
-          error: "Bad Request",
-          message: `Menu items unavailable: ${unavailableItems
-            .map((item) => item.id)
-            .join(", ")}`,
-        },
-        400,
-      );
-    }
-
-    const itemsById = new Map(
-      referencedItems.map((item) => [item.id, item] as const),
-    );
-    const lineItems = body.items.map((item) => {
-      const menuItem = itemsById.get(item.menuItemId);
-
-      if (!menuItem) {
-        throw new Error(`Menu item missing after validation: ${item.menuItemId}`);
-      }
-
-      const priceAtTime = Number(menuItem.price);
-      const itemSubtotal = priceAtTime * item.quantity;
-
-      return {
-        menuItemId: item.menuItemId,
-        quantity: item.quantity,
-        notes: item.notes,
-        priceAtTime: money(priceAtTime),
-        subtotal: money(itemSubtotal),
-      };
-    });
-
-    const orderSubtotal = lineItems.reduce(
-      (sum, item) => sum + Number(item.subtotal),
-      0,
-    );
-    const tax = orderSubtotal * 0.08;
-    const total = orderSubtotal + tax;
+    const { lineItems, subtotal: orderSubtotal, tax, total } = evaluation;
 
     const [order] = await db
       .insert(orders)
@@ -2073,6 +1990,10 @@ app.openapi(updateSettingsRoute, async (c) => {
   const db = c.get("db");
   const body = c.req.valid("json");
   const [existing] = await db.select().from(restaurantSettings).limit(1);
+  const serviceAvailable = body.serviceAvailable ?? existing?.serviceAvailable ?? true;
+  const autoAcceptOrders = serviceAvailable
+    ? (body.autoAcceptOrders ?? existing?.autoAcceptOrders ?? true)
+    : false;
 
   if (!existing) {
     const [created] = await db
@@ -2080,8 +2001,8 @@ app.openapi(updateSettingsRoute, async (c) => {
       .values({
         restaurantName: body.restaurantName ?? "Ody Restaurant",
         prepTimeMinutes: body.prepTimeMinutes ?? 15,
-        autoAcceptOrders: body.autoAcceptOrders ?? true,
-        serviceAvailable: body.serviceAvailable ?? true,
+        autoAcceptOrders,
+        serviceAvailable,
         taxRate: body.taxRate ?? "0.0800",
         openingTime: body.openingTime,
         closingTime: body.closingTime,
@@ -2100,7 +2021,12 @@ app.openapi(updateSettingsRoute, async (c) => {
 
   const [updated] = await db
     .update(restaurantSettings)
-    .set({ ...body, updatedAt: new Date() })
+    .set({
+      ...body,
+      autoAcceptOrders,
+      serviceAvailable,
+      updatedAt: new Date(),
+    })
     .where(eq(restaurantSettings.id, existing.id))
     .returning();
 

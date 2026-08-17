@@ -13,11 +13,17 @@ import {
   type UpdateOrderStatusStatus,
 } from "@ody/api-client";
 import { fonts } from "@ody/shared";
+import { CreateOrderButton } from "../../components/CreateOrderButton";
 import { CreateOrderModal } from "../../components/CreateOrderModal";
+import { nextStatusFor } from "../../lib/order-status";
+import {
+  SegmentedToggleBar,
+  segmentedTextTransition,
+} from "../../components/SegmentedToggleBar";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import {
   Pressable,
   ScrollView,
@@ -327,7 +333,9 @@ function nextStatusAction(status: string): {
   color: string;
   background: string;
 } | null {
-  if (status === "pending") {
+  const next = nextStatusFor(status);
+
+  if (next === "preparing") {
     return {
       label: "Preparing",
       status: "preparing",
@@ -337,7 +345,7 @@ function nextStatusAction(status: string): {
     };
   }
 
-  if (status === "preparing") {
+  if (next === "ready") {
     return {
       label: "Ready",
       status: "ready",
@@ -347,7 +355,7 @@ function nextStatusAction(status: string): {
     };
   }
 
-  if (status === "ready") {
+  if (next === "completed") {
     return {
       label: "Completed",
       status: "completed",
@@ -737,30 +745,10 @@ export default function OrdersScreen() {
             <Ionicons name="search" size={15} color="#ffffff" />
           </View>
         </View>
-        <Pressable
+        <CreateOrderButton
+          kitchenOpen={kitchenOpen}
           onPress={() => setCreateOpen(true)}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-            backgroundColor: palette.red,
-            borderRadius: 99,
-            paddingVertical: 10,
-            paddingHorizontal: 16,
-          }}
-        >
-          <Ionicons name="add" size={18} color="#ffffff" />
-          <Text
-            style={{
-              ...sans,
-              color: "#ffffff",
-              fontFamily: fonts.sansSemiBold,
-              fontSize: 13,
-            }}
-          >
-            Create an Order
-          </Text>
-        </Pressable>
+        />
       </View>
 
       <View
@@ -995,7 +983,10 @@ export default function OrdersScreen() {
         </View>
       </View>
     </ScrollView>
-    <CreateOrderModal visible={createOpen} onClose={() => setCreateOpen(false)} />
+    <CreateOrderModal
+      visible={createOpen && kitchenOpen}
+      onClose={() => setCreateOpen(false)}
+    />
     </>
   );
 }
@@ -1115,102 +1106,49 @@ function StatusTabs({
   counts: Record<Exclude<StatusFilter, "all">, number | undefined>;
   onSelect: (filter: StatusFilter) => void;
 }) {
-  const layouts = useRef<Partial<Record<StatusFilter, { x: number; width: number }>>>(
-    {},
-  );
-  const [pill, setPill] = useState({ x: 4, width: 48 });
-
-  useEffect(() => {
-    const layout = layouts.current[selected];
-    if (layout) {
-      setPill(layout);
-    }
-  }, [selected]);
-
   return (
-    <View
-      style={{
-        backgroundColor: palette.tabTrack,
-        borderRadius: 99,
-        padding: 4,
-        flexDirection: "row",
-        alignItems: "center",
-        position: "relative",
-        minHeight: 45.5,
-      }}
-    >
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          left: pill.x,
-          top: 4,
-          width: pill.width,
-          height: 37.5,
-          borderRadius: 99,
-          backgroundColor: palette.red,
-          shadowColor: palette.red,
-          shadowOpacity: 0.25,
-          shadowRadius: 6,
-          shadowOffset: { width: 0, height: 2 },
-          transitionProperty: "left, width",
-          transitionDuration: "220ms",
-          transitionTimingFunction: "ease-out",
-        }}
-      />
-      {STATUS_FILTERS.map((filter) => {
-        const isSelected = selected === filter;
-        const count = filter === "all" ? undefined : counts[filter];
+    <SegmentedToggleBar
+      selected={selected}
+      onSelect={onSelect}
+      items={STATUS_FILTERS.map((filter) => ({
+        value: filter,
+        accessibilityLabel: statusLabel(filter),
+        render: (isSelected) => {
+          const count = filter === "all" ? undefined : counts[filter];
 
-        return (
-          <Pressable
-            key={filter}
-            onPress={() => onSelect(filter)}
-            onLayout={(event) => {
-              const { x, width } = event.nativeEvent.layout;
-              layouts.current[filter] = { x, width };
-              if (filter === selected) {
-                setPill({ x, width });
-              }
-            }}
-            style={{
-              paddingVertical: 9,
-              paddingHorizontal: 16,
-              borderRadius: 99,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              zIndex: 1,
-            }}
-          >
-            <Text
-              style={{
-                ...sans,
-                fontSize: 13,
-                lineHeight: 20,
-                fontFamily: isSelected ? fonts.sansSemiBold : fonts.sansMedium,
-                color: isSelected ? "#ffffff" : palette.muted,
-              }}
-            >
-              {statusLabel(filter)}
-            </Text>
-            {count !== undefined ? (
+          return (
+            <>
               <Text
                 style={{
                   ...sans,
-                  fontSize: 11,
-                  lineHeight: 16,
-                  fontFamily: fonts.sansBold,
-                  color: isSelected ? "rgba(255,255,255,0.85)" : "rgba(160, 112, 96, 0.6)",
+                  fontSize: 13,
+                  lineHeight: 20,
+                  fontFamily: isSelected ? fonts.sansSemiBold : fonts.sansMedium,
+                  color: isSelected ? "#ffffff" : palette.muted,
+                  ...segmentedTextTransition,
                 }}
               >
-                {count}
+                {statusLabel(filter)}
               </Text>
-            ) : null}
-          </Pressable>
-        );
-      })}
-    </View>
+              {count !== undefined ? (
+                <Text
+                  style={{
+                    ...sans,
+                    fontSize: 11,
+                    lineHeight: 16,
+                    fontFamily: fonts.sansBold,
+                    color: isSelected ? "rgba(255,255,255,0.85)" : "rgba(160, 112, 96, 0.6)",
+                    ...segmentedTextTransition,
+                  }}
+                >
+                  {count}
+                </Text>
+              ) : null}
+            </>
+          );
+        },
+      }))}
+    />
   );
 }
 

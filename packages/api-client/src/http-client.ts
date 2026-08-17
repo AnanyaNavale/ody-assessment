@@ -1,4 +1,6 @@
-import Axios, { type AxiosError, type AxiosRequestConfig } from "axios";
+import axios, { type AxiosError, type AxiosRequestConfig } from "axios";
+
+const Axios = (axios as unknown as { default?: typeof axios }).default ?? axios;
 
 export const AXIOS_INSTANCE = Axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8787",

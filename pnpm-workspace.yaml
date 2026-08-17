@@ -6,3 +6,5 @@ allowBuilds:
   '@scarf/scarf': false
   esbuild: true
   workerd: true
+overrides:
+  pretty-format: 29.7.0

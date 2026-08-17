@@ -315,16 +315,6 @@
             "format": "uuid",
             "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
           },
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CreateOrderItem"
-            },
-            "minItems": 1
-          },
-          "notes": {
-            "type": "string"
-          },
           "orderType": {
             "type": "string",
             "enum": [
@@ -332,6 +322,16 @@
               "pickup",
               "delivery"
             ]
+          },
+          "notes": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateOrderItem"
+            },
+            "minItems": 1
           }
         },
         "required": [

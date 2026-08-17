@@ -69,6 +69,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="orders/[id]" />
         <Stack.Screen name="crm/[id]" />
+        <Stack.Screen name="design-system" />
       </Stack>
     </QueryClientProvider>
   );

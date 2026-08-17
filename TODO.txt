@@ -5,14 +5,14 @@ OVERALL
 HOME
 
 MENU
-[] Add drag and drop reorder for categories
-[] Add search bar for items
-[] Add item-specific modals for each item -- link Home popular items with respective modals 
+[x] Add drag and drop reorder for categories
+[x] Add search bar for items
+[x] Add item-specific modals for each item -- link Home popular items with respective modals 
 
 ORDERS
 [x] Add counts in each tab
 
 CRM
-[] Detail: Make sort dropdown overlap list, not push list down
+[x] Detail: Make sort dropdown overlap list, not push list down
 
 SETTINGS

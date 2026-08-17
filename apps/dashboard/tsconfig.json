@@ -7,6 +7,9 @@
   },
   "include": [
     "app",
+    "components",
+    "lib",
+    "__tests__",
     "src",
     "*.ts",
     "*.tsx",

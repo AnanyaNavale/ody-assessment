@@ -11,8 +11,10 @@ import { fonts } from "@ody/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter, type Href } from "expo-router";
-import { type ComponentProps, type ReactNode } from "react";
+import { type ComponentProps, type ReactNode, useRef } from "react";
+import { canTransitionTo } from "../../lib/order-status";
 import {
+  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -57,9 +59,12 @@ const sans: TextStyle = {
 const FLOW_STAGES = [
   { status: "pending", label: "Pending", icon: "time-outline" },
   { status: "preparing", label: "Preparing", icon: "flame-outline" },
-  { status: "ready", label: "Ready", icon: "checkmark-circle-outline" },
-  { status: "completed", label: "Completed", icon: "checkmark-outline" },
+  { status: "ready", label: "Ready", icon: "checkmark-outline" },
+  { status: "completed", label: "Completed", icon: "checkmark-done-outline" },
 ] as const;
+
+const NODE_SIZE = 52;
+const ACTIVE_HALO = 62;
 
 const STATUS_BADGE: Record<
   string,
@@ -268,7 +273,12 @@ export default function OrderDetailScreen() {
   }
 
   function setStatus(status: UpdateOrderStatusStatus) {
-    if (!order || order.status === status || updateStatus.isPending) {
+    if (
+      !order ||
+      order.status === status ||
+      updateStatus.isPending ||
+      !canTransitionTo(order.status, status)
+    ) {
       return;
     }
 
@@ -514,7 +524,7 @@ export default function OrderDetailScreen() {
 
         {order ? (
           <>
-            <Card>
+            <Card overflowVisible>
               <CardHeader
                 title="Order Progress"
                 subtitle="Click any stage to update the order status"
@@ -523,8 +533,8 @@ export default function OrderDetailScreen() {
                 style={{
                   flexDirection: "row",
                   alignItems: "flex-start",
-                  paddingHorizontal: 28,
-                  paddingVertical: 20,
+                  paddingHorizontal: 20,
+                  paddingVertical: 18,
                 }}
               >
                 {FLOW_STAGES.map((stage, index) => {
@@ -536,6 +546,9 @@ export default function OrderDetailScreen() {
                     currentIndex >= 0 &&
                     index <= currentIndex;
                   const active = order.status === stage.status;
+                  const canSelect = canTransitionTo(order.status, stage.status);
+                  const segmentComplete =
+                    order.status !== "cancelled" && currentIndex > index;
 
                   return (
                     <View
@@ -551,20 +564,23 @@ export default function OrderDetailScreen() {
                         icon={stage.icon}
                         reached={reached}
                         active={active}
-                        disabled={updateStatus.isPending}
-                        onPress={() => setStatus(stage.status)}
+                        canSelect={canSelect && !updateStatus.isPending}
+                        onPress={() => {
+                          if (canSelect) {
+                            setStatus(stage.status);
+                          }
+                        }}
                       />
                       {index < FLOW_STAGES.length - 1 ? (
                         <View
                           style={{
                             flex: 1,
-                            height: 2,
-                            marginTop: 25,
-                            marginHorizontal: 8,
+                            height: 0,
+                            marginTop: NODE_SIZE / 2,
+                            marginHorizontal: 4,
                             borderTopWidth: 2,
-                            borderStyle: reached && currentIndex > index ? "solid" : "dashed",
-                            borderColor:
-                              reached && currentIndex > index ? palette.red : palette.track,
+                            borderStyle: "dashed",
+                            borderColor: segmentComplete ? palette.red : palette.track,
                           }}
                         />
                       ) : null}
@@ -574,9 +590,10 @@ export default function OrderDetailScreen() {
                 <View
                   style={{
                     width: 1,
-                    height: 60,
+                    height: 56,
                     backgroundColor: palette.hairline,
-                    marginHorizontal: 24,
+                    marginTop: 10,
+                    marginHorizontal: 20,
                   }}
                 />
                 <ProgressNode
@@ -585,8 +602,15 @@ export default function OrderDetailScreen() {
                   reached={order.status === "cancelled"}
                   active={order.status === "cancelled"}
                   fill={order.status === "cancelled" ? "#6b7280" : palette.red}
-                  disabled={updateStatus.isPending}
-                  onPress={() => setStatus("cancelled")}
+                  canSelect={
+                    !updateStatus.isPending &&
+                    canTransitionTo(order.status, "cancelled")
+                  }
+                  onPress={() => {
+                    if (canTransitionTo(order.status, "cancelled")) {
+                      setStatus("cancelled");
+                    }
+                  }}
                 />
               </View>
             </Card>
@@ -907,7 +931,13 @@ export default function OrderDetailScreen() {
   );
 }
 
-function Card({ children }: { children: ReactNode }) {
+function Card({
+  children,
+  overflowVisible = false,
+}: {
+  children: ReactNode;
+  overflowVisible?: boolean;
+}) {
   return (
     <View
       style={{
@@ -915,7 +945,7 @@ function Card({ children }: { children: ReactNode }) {
         borderRadius: 16,
         borderWidth: 1,
         borderColor: palette.cardBorder,
-        overflow: "hidden",
+        overflow: overflowVisible ? "visible" : "hidden",
         shadowColor: "#000",
         shadowOpacity: 0.05,
         shadowRadius: 4,
@@ -955,7 +985,7 @@ function ProgressNode({
   reached,
   active,
   fill = palette.red,
-  disabled,
+  canSelect,
   onPress,
 }: {
   label: string;
@@ -963,38 +993,93 @@ function ProgressNode({
   reached: boolean;
   active: boolean;
   fill?: string;
-  disabled?: boolean;
+  canSelect: boolean;
   onPress: () => void;
 }) {
+  const hover = useRef(new Animated.Value(0)).current;
+  const past = reached && !active;
+
+  function fadeHover(toValue: number) {
+    if (!canSelect || active || reached) {
+      return;
+    }
+
+    Animated.timing(hover, {
+      toValue,
+      duration: 180,
+      useNativeDriver: false,
+    }).start();
+  }
+
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={!canSelect}
+      onHoverIn={() => fadeHover(1)}
+      onHoverOut={() => {
+        Animated.timing(hover, {
+          toValue: 0,
+          duration: 180,
+          useNativeDriver: false,
+        }).start();
+      }}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={{ alignItems: "center", gap: 8, opacity: disabled ? 0.6 : 1 }}
+      style={{ alignItems: "center" }}
     >
       <View
         style={{
-          width: 52,
-          height: 52,
-          borderRadius: 26,
+          width: NODE_SIZE,
+          height: NODE_SIZE,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: reached ? fill : "#ffffff",
-          borderWidth: 2,
-          borderColor: reached ? fill : palette.track,
         }}
       >
-        <Ionicons name={icon} size={22} color={reached ? "#ffffff" : palette.inactive} />
+        {active ? (
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              width: ACTIVE_HALO,
+              height: ACTIVE_HALO,
+              borderRadius: ACTIVE_HALO / 2,
+              backgroundColor: "rgba(215, 36, 0, 0.14)",
+            }}
+          />
+        ) : null}
+        <Animated.View
+          style={{
+            width: NODE_SIZE,
+            height: NODE_SIZE,
+            borderRadius: NODE_SIZE / 2,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: reached ? fill : "#ffffff",
+            borderWidth: 2,
+            borderColor: reached
+              ? fill
+              : hover.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [palette.track, "rgba(215, 36, 0, 0.45)"],
+                }),
+            opacity: past ? 0.7 : 1,
+          }}
+        >
+          <Ionicons
+            name={icon}
+            size={22}
+            color={reached ? "#ffffff" : palette.inactive}
+          />
+        </Animated.View>
       </View>
       <Text
         style={{
           ...sans,
           fontSize: 12,
-          fontFamily: active ? fonts.sansBold : fonts.sansMedium,
-          color: active ? palette.ink : palette.inactive,
+          fontFamily: active ? fonts.sansBold : fonts.sans,
+          color: active ? palette.ink : past ? "rgba(26, 8, 0, 0.42)" : palette.inactive,
           textAlign: "center",
+          marginTop: 8,
         }}
       >
         {label}
