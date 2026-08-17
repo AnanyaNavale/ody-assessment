@@ -51,6 +51,7 @@ AXIOS_INSTANCE.defaults.baseURL =
 
 export default function RootLayout() {
   useHideWebFocusOutline();
+  /* eslint-disable @typescript-eslint/no-require-imports */
   const [fontsLoaded, fontError] = useFonts({
     "DMSans-Regular": require("../assets/fonts/DMSans-Regular.ttf"),
     "DMSans-Medium": require("../assets/fonts/DMSans-Medium.ttf"),
@@ -58,6 +59,7 @@ export default function RootLayout() {
     "DMSans-Bold": require("../assets/fonts/DMSans-Bold.ttf"),
     "DMSerifDisplay-Regular": require("../assets/fonts/DMSerifDisplay-Regular.ttf"),
   });
+  /* eslint-enable @typescript-eslint/no-require-imports */
 
   if (!fontsLoaded && !fontError) {
     return null;

@@ -23,25 +23,11 @@ const TAB_LABELS: Record<string, string> = {
   settings: "Settings",
 };
 
-function SideTabBar({
-  state,
-  descriptors,
-  navigation,
-}: {
-  state: { index: number; routes: Array<{ key: string; name: string }> };
-  descriptors: Record<
-    string,
-    { options: { tabBarAccessibilityLabel?: string } }
-  >;
-  navigation: {
-    emit: (event: {
-      type: string;
-      target: string;
-      canPreventDefault: boolean;
-    }) => { defaultPrevented: boolean };
-    navigate: (name: string) => void;
-  };
-}) {
+type TabBarProps = Parameters<
+  NonNullable<ComponentProps<typeof Tabs>["tabBar"]>
+>[0];
+
+function SideTabBar({ state, descriptors, navigation }: TabBarProps) {
   return (
     <View
       style={{

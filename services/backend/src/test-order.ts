@@ -5,7 +5,7 @@ import { config } from "dotenv";
 import { eq } from "drizzle-orm";
 import { createDb, customers, menuItems, orders } from "./db";
 
-const backendRoot = fileURLToPath(new URL("..", import.meta.url));
+const backendRoot = fileURLToPath(new URL("..", import.meta.url).href);
 
 config({ path: path.join(backendRoot, ".dev.vars") });
 

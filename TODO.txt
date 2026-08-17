@@ -11,6 +11,7 @@ MENU
 
 ORDERS
 [x] Add counts in each tab
+[] Order modification flexibility
 
 CRM
 [x] Detail: Make sort dropdown overlap list, not push list down

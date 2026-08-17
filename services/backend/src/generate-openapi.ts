@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import app, { openAPIConfig } from "./index";
 
-const backendRoot = fileURLToPath(new URL("..", import.meta.url));
+const backendRoot = fileURLToPath(new URL("..", import.meta.url).href);
 const outputPath = path.join(
   backendRoot,
   "../../packages/api-client/openapi.json",

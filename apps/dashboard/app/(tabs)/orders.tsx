@@ -23,7 +23,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import {
   Pressable,
   ScrollView,
@@ -90,10 +90,13 @@ const STATUS_COLORS = {
   cancelled: "#E5E7EB",
 } as const;
 
-const STATUS_PILL: Record<
-  string,
-  { background: string; color: string; icon: ComponentProps<typeof Ionicons>["name"] }
-> = {
+type StatusPill = {
+  background: string;
+  color: string;
+  icon: ComponentProps<typeof Ionicons>["name"];
+};
+
+const STATUS_PILL = {
   pending: {
     background: "rgba(215, 36, 0, 0.12)",
     color: STATUS_COLORS.pending,
@@ -119,7 +122,7 @@ const STATUS_PILL: Record<
     color: "#6b7280",
     icon: "close-outline",
   },
-};
+} as const satisfies Record<string, StatusPill>;
 
 function firstParam(value?: string | string[]): string | undefined {
   if (Array.isArray(value)) {
@@ -131,6 +134,36 @@ function firstParam(value?: string | string[]): string | undefined {
 
 function orderNumber(id: string): string {
   return `#${id.slice(0, 8).toUpperCase()}`;
+}
+
+function normalizeOrderSearch(value: string): string {
+  return value.trim().replace(/^#/, "").replace(/-/g, "").toLowerCase();
+}
+
+function looksLikeOrderNumber(value: string): boolean {
+  const trimmed = value.trim();
+
+  if (trimmed.startsWith("#") && normalizeOrderSearch(trimmed).length >= 4) {
+    return true;
+  }
+
+  const compact = normalizeOrderSearch(trimmed);
+  return /^[0-9a-f]{8,}$/i.test(compact);
+}
+
+function orderMatchesNumber(order: OrderWithDetails, query: string): boolean {
+  const needle = normalizeOrderSearch(query);
+
+  if (needle.length === 0) {
+    return false;
+  }
+
+  return order.id.replace(/-/g, "").toLowerCase().startsWith(needle);
+}
+
+function searchQueryValue(value: string): string | undefined {
+  const trimmed = value.trim().replace(/^#/, "");
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function statusLabel(status: string): string {
@@ -447,6 +480,7 @@ export default function OrdersScreen() {
   const selectedTypes = parseTypes(firstParam(params.types));
   const pageParam = Number(firstParam(params.page) ?? "1");
   const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+  const searchingOrderNumber = looksLikeOrderNumber(search);
 
   const storedSorts: Record<StatusFilter, SortOption | undefined> = {
     all: parseSort(firstParam(params.sortAll)),
@@ -465,9 +499,11 @@ export default function OrdersScreen() {
   const dateParam = firstParam(params.date);
   const dateTouched = DATE_OPTIONS.some((option) => option.value === dateParam);
   const dateFilter: DateOption =
-    statusFilter === "all" && dateTouched
-      ? (dateParam as DateOption)
-      : smartDateFilter(statusFilter);
+    searchingOrderNumber
+      ? "all"
+      : statusFilter === "all" && dateTouched
+        ? (dateParam as DateOption)
+        : smartDateFilter(statusFilter);
 
   const { sortBy, sortOrder } = sortQuery(sort);
 
@@ -513,7 +549,7 @@ export default function OrdersScreen() {
   const ordersQuery = useGetOrders({
     status:
       statusFilter === "all" ? undefined : (statusFilter as GetOrdersStatus),
-    search: search.trim() || undefined,
+    search: searchQueryValue(search),
     sortBy,
     sortOrder,
     dateFilter: dateFilter as GetOrdersDateFilter,
@@ -521,6 +557,51 @@ export default function OrdersScreen() {
     limit: PAGE_SIZE,
     offset: (page - 1) * PAGE_SIZE,
   });
+
+  const searchLookupParams = {
+    search: searchQueryValue(search),
+    dateFilter: "all" as const,
+    limit: 25,
+    offset: 0,
+  };
+
+  const searchLookupQuery = useGetOrders(searchLookupParams, {
+    query: {
+      enabled: searchLookupParams.search !== undefined,
+      queryKey: getGetOrdersQueryKey(searchLookupParams),
+    },
+  });
+
+  useEffect(() => {
+    const needle = search.trim();
+
+    if (!needle) {
+      return;
+    }
+
+    if (!looksLikeOrderNumber(needle)) {
+      if (statusFilter !== "all") {
+        updateParams({ tab: "all" });
+      }
+      return;
+    }
+
+    if (!searchLookupQuery.isSuccess) {
+      return;
+    }
+
+    const match = (searchLookupQuery.data?.items ?? []).find((order) =>
+      orderMatchesNumber(order, needle),
+    );
+
+    if (!match || !STATUS_FILTERS.includes(match.status as StatusFilter)) {
+      return;
+    }
+
+    if (match.status !== statusFilter) {
+      updateParams({ tab: match.status as StatusFilter });
+    }
+  }, [search, statusFilter, searchLookupQuery.isSuccess, searchLookupQuery.data]);
 
   const orders = ordersQuery.data?.items ?? [];
   const total = ordersQuery.data?.total ?? 0;
@@ -1333,7 +1414,10 @@ function OrderRow({
     showOverdue && isOpenStatus(order.status)
       ? overdueLabel(order.createdAt)
       : null;
-  const pill = STATUS_PILL[order.status] ?? STATUS_PILL.pending;
+  const pill =
+    order.status in STATUS_PILL
+      ? STATUS_PILL[order.status as keyof typeof STATUS_PILL]
+      : STATUS_PILL.pending;
   const nextAction = nextStatusAction(order.status);
 
   return (

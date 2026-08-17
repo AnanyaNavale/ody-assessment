@@ -146,7 +146,14 @@ export default function HomeScreen() {
                 backgroundColor: kitchenOpen ? palette.kitchen : palette.down,
               }}
             />
-            <Text style={{ ...sans, fontSize: 13, fontFamily: fonts.sansMedium, color: "#333" }}>
+            <Text
+              style={{
+                ...sans,
+                fontSize: 13,
+                fontFamily: fonts.sansMedium,
+                color: "#333",
+              }}
+            >
               {kitchenOpen ? "Kitchen Open" : "Kitchen Closed"}
             </Text>
           </View>
@@ -160,7 +167,14 @@ export default function HomeScreen() {
               justifyContent: "center",
             }}
           >
-            <Text style={{ ...sans, color: "#fff", fontFamily: fonts.sansSemiBold, fontSize: 14 }}>
+            <Text
+              style={{
+                ...sans,
+                color: "#fff",
+                fontFamily: fonts.sansSemiBold,
+                fontSize: 14,
+              }}
+            >
               AN
             </Text>
           </View>
@@ -171,7 +185,9 @@ export default function HomeScreen() {
 
       {statsQuery.isError ? (
         <Panel>
-          <Text style={{ ...sans, fontSize: 14 }}>Unable to load dashboard stats</Text>
+          <Text style={{ ...sans, fontSize: 14 }}>
+            Unable to load dashboard stats
+          </Text>
         </Panel>
       ) : null}
 
@@ -191,7 +207,11 @@ export default function HomeScreen() {
               trend={percentTrend(stats.totalOrdersChangePercent)}
               iconBackground={palette.redSoft}
               icon={
-                <Ionicons name="receipt-outline" size={18} color={palette.red} />
+                <Ionicons
+                  name="receipt-outline"
+                  size={18}
+                  color={palette.red}
+                />
               }
             />
             <KpiCard
@@ -200,7 +220,11 @@ export default function HomeScreen() {
               trend={percentTrend(stats.revenueChangePercent)}
               iconBackground={palette.tealSoft}
               icon={
-                <Ionicons name="wallet-outline" size={18} color={palette.teal} />
+                <Ionicons
+                  name="wallet-outline"
+                  size={18}
+                  color={palette.teal}
+                />
               }
             />
             <KpiCard
@@ -215,9 +239,7 @@ export default function HomeScreen() {
             <KpiCard
               label="Pending Orders"
               value={String(stats.pendingOrders)}
-              trend={percentTrend(
-                percentFromCounts(stats.pendingOrders, stats.pendingOrdersChange),
-              )}
+              trend={null} // Remove trend - pending orders are current state, not historical
               iconBackground={palette.goldSoft}
               icon={
                 <Ionicons name="time-outline" size={18} color={palette.gold} />
@@ -284,16 +306,6 @@ function percentTrend(value: number | null): { text: string; up: boolean } {
     text: `${formatPercent(value)} vs yesterday`,
     up: value >= 0,
   };
-}
-
-function percentFromCounts(today: number, change: number): number | null {
-  const yesterday = today - change;
-
-  if (yesterday === 0) {
-    return today === 0 ? 0 : null;
-  }
-
-  return Math.round((change / yesterday) * 1000) / 10;
 }
 
 function Panel({

@@ -16,6 +16,7 @@ export default tseslint.config(
       "**/.expo-shared/**",
       "**/web-build/**",
       "**/src/generated/**",
+      "**/*.config.cjs",
     ],
   },
   js.configs.recommended,

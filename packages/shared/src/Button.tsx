@@ -34,7 +34,7 @@ export function Button({
     <Pressable
       {...props}
       disabled={disabled}
-      style={[
+      style={(state) => [
         {
           backgroundColor: palette.backgroundColor,
           paddingVertical: spacing.sm,
@@ -43,7 +43,7 @@ export function Button({
           opacity: disabled ? 0.6 : 1,
           alignSelf: "flex-start",
         },
-        style,
+        typeof style === "function" ? style(state) : style,
       ]}
     >
       <Text

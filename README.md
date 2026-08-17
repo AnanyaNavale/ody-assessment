@@ -165,6 +165,7 @@ Given additional time, the following features would extend the platform's capabi
 **Delivery tracking integration** - Real-time status updates for third-party delivery services (Uber Eats, DoorDash) with driver assignment and ETA
 **Customer addresses** - Saved delivery addresses with validation and order history by location
 **Review and feedback tracking** - Customer ratings, comments, and sentiment analysis tied to orders
+**Communication method** – Allowing the customer to choose whether to give email or phone rather than requiring email
 
 ### Menu & Inventory
 
@@ -179,6 +180,7 @@ Given additional time, the following features would extend the platform's capabi
 **Staff roles and permissions** - Waitstaff, kitchen, manager access levels with order assignment
 **Shift management** - Staff scheduling, clock-in/out, and performance metrics
 **Kitchen display system** - Separate view for kitchen staff with prep prioritization
+**Gratuity** – Incorporate calculation and order update facilities for tips
 
 ### Multi-Location & Franchise
 

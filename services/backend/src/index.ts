@@ -129,8 +129,6 @@ const OrderStatusSchema = z.enum([
   "cancelled",
 ]);
 
-type OrderStatusValue = z.infer<typeof OrderStatusSchema>;
-
 const OrderCustomerSchema = z
   .object({
     id: z.string().uuid(),
@@ -989,6 +987,7 @@ const updateSettingsRoute = createRoute({
   responses: {
     200: jsonContent(RestaurantSettingsSchema, "Settings updated"),
     400: jsonContent(ErrorSchema, "Invalid request body"),
+    500: jsonContent(ErrorSchema, "Failed to persist settings"),
   },
 });
 

@@ -6,7 +6,7 @@ import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/neon-http";
 import { migrate } from "drizzle-orm/neon-http/migrator";
 
-const backendRoot = fileURLToPath(new URL("../..", import.meta.url));
+const backendRoot = fileURLToPath(new URL("../..", import.meta.url).href);
 
 config({ path: path.join(backendRoot, ".dev.vars") });
 
@@ -17,10 +17,12 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
+const neonUrl: string = databaseUrl;
+
 async function runMigrations() {
   console.log("⏳ Running migrations...");
 
-  const db = drizzle(neon(databaseUrl));
+  const db = drizzle(neon(neonUrl));
   await migrate(db, {
     migrationsFolder: path.join(backendRoot, "drizzle"),
   });

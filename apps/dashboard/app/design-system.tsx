@@ -739,10 +739,13 @@ export default function DesignSystemScreen() {
                 { value: "preparing", label: "Preparing", count: 5 },
                 { value: "ready", label: "Ready", count: 2 },
               ] as const
-            ).map((tab) => ({
+            ).map((tab) => {
+              const count = "count" in tab ? tab.count : undefined;
+
+              return {
               value: tab.value,
               accessibilityLabel: tab.label,
-              render: (selected) => (
+              render: (selected: boolean) => (
                 <>
                   <Text
                     style={{
@@ -755,7 +758,7 @@ export default function DesignSystemScreen() {
                   >
                     {tab.label}
                   </Text>
-                  {tab.count !== undefined ? (
+                  {count !== undefined ? (
                     <Text
                       style={{
                         ...sans,
@@ -765,12 +768,13 @@ export default function DesignSystemScreen() {
                         ...segmentedTextTransition,
                       }}
                     >
-                      {tab.count}
+                      {count}
                     </Text>
                   ) : null}
                 </>
               ),
-            }))}
+            };
+            })}
           />
 
           <Text style={{ ...sans, fontFamily: fonts.sansSemiBold, fontSize: 13 }}>Customer order history (grid / list)</Text>

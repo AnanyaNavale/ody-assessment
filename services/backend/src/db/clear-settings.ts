@@ -5,7 +5,7 @@ import { config } from "dotenv";
 import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createDb } from "./index";
 
-const backendRoot = fileURLToPath(new URL("../..", import.meta.url));
+const backendRoot = fileURLToPath(new URL("../..", import.meta.url).href);
 
 config({ path: path.join(backendRoot, ".dev.vars") });
 

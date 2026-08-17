@@ -1,4 +1,5 @@
 import {
+  getGetOrdersQueryKey,
   useGetCustomer,
   useGetOrders,
   useGetSettings,
@@ -28,36 +29,39 @@ const sans: TextStyle = {
   color: palette.ink,
 };
 
-const STATUS_BADGE: Record<
-  string,
-  { background: string; color: string; icon: ComponentProps<typeof Ionicons>["name"] }
-> = {
+const STATUS_BADGE = {
   pending: {
     background: statusColors.pending.background,
     color: statusColors.pending.text,
-    icon: "time-outline",
+    icon: "time-outline" as const,
   },
   preparing: {
     background: statusColors.preparing.background,
     color: statusColors.preparing.text,
-    icon: "flame-outline",
+    icon: "flame-outline" as const,
   },
   ready: {
     background: statusColors.ready.background,
     color: statusColors.ready.text,
-    icon: "checkmark-circle-outline",
+    icon: "checkmark-circle-outline" as const,
   },
   completed: {
     background: statusColors.completed.background,
     color: statusColors.completed.text,
-    icon: "checkmark-outline",
+    icon: "checkmark-outline" as const,
   },
   cancelled: {
     background: statusColors.cancelled.background,
     color: statusColors.cancelled.text,
-    icon: "close-outline",
+    icon: "close-outline" as const,
   },
 };
+
+function statusBadge(status: string) {
+  return status in STATUS_BADGE
+    ? STATUS_BADGE[status as keyof typeof STATUS_BADGE]
+    : STATUS_BADGE.pending;
+}
 
 const NAV_ITEMS = [
   { href: "/(tabs)", label: "Home", icon: "home-outline" as const },
@@ -225,16 +229,19 @@ export default function CustomerDetailScreen() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const customerQuery = useGetCustomer(id ?? "");
-  const ordersQuery = useGetOrders(
-    {
-      customerId: id,
-      dateFilter: "all",
-      sortBy: "createdAt",
-      sortOrder: "desc",
-      limit: 100,
+  const customerOrdersParams = {
+    customerId: id,
+    dateFilter: "all" as const,
+    sortBy: "createdAt" as const,
+    sortOrder: "desc" as const,
+    limit: 100,
+  };
+  const ordersQuery = useGetOrders(customerOrdersParams, {
+    query: {
+      enabled: Boolean(id),
+      queryKey: getGetOrdersQueryKey(customerOrdersParams),
     },
-    { query: { enabled: Boolean(id) } },
-  );
+  });
   const [sort, setSort] = useState<SortOption>("newest");
   const [historyView, setHistoryView] = useState<HistoryView>("grid");
 
@@ -892,7 +899,7 @@ function OrderHistoryCard({
   order: OrderWithDetails;
   onPress: () => void;
 }) {
-  const badge = STATUS_BADGE[order.status] ?? STATUS_BADGE.pending;
+  const badge = statusBadge(order.status);
   const images = order.orderItems
     .map((item) => item.menuItem.imageUrl)
     .filter((url): url is string => Boolean(url));
@@ -1017,7 +1024,7 @@ function OrderHistoryRow({
   order: OrderWithDetails;
   onPress: () => void;
 }) {
-  const badge = STATUS_BADGE[order.status] ?? STATUS_BADGE.pending;
+  const badge = statusBadge(order.status);
   const items = order.orderItems;
   const visible = items.slice(0, 3);
   const hasMore = items.length > 3;

@@ -21,7 +21,7 @@ import {
   type OrderStatus,
 } from "./index";
 
-const backendRoot = fileURLToPath(new URL("../..", import.meta.url));
+const backendRoot = fileURLToPath(new URL("../..", import.meta.url).href);
 
 config({ path: path.join(backendRoot, ".dev.vars") });
 
@@ -589,7 +589,9 @@ async function seed() {
 
   const insertedCustomers = await db
     .insert(customers)
-    .values(customerSeeds.map((customer) => insertCustomerSchema.parse(customer)))
+    .values(
+      customerSeeds.map((customer) => insertCustomerSchema.parse(customer)),
+    )
     .returning();
 
   console.log(`Created ${insertedCustomers.length} customers`);
@@ -633,7 +635,8 @@ async function seed() {
     );
     const tax = subtotal * TAX_RATE;
     const total = subtotal + tax;
-    const completedAt = status === "completed" ? completedAtFor(createdAt) : null;
+    const completedAt =
+      status === "completed" ? completedAtFor(createdAt) : null;
 
     const [order] = await db
       .insert(orders)
@@ -693,6 +696,29 @@ async function seed() {
     });
   }
 
+  // Seed yesterday's orders to ensure trend data
+  const yesterdayOrderCount = randomInt(60, 80); // Similar volume to today
+
+  for (let index = 0; index < yesterdayOrderCount; index += 1) {
+    const today = restaurantNowParts();
+    const yesterday = zonedDate(
+      today.year,
+      today.month,
+      today.day - 1, // Yesterday
+      randomInt(7, 22),
+      randomInt(0, 59),
+      randomInt(0, 59),
+    );
+
+    await createOrderForCustomer({
+      customerId: pickOne(insertedCustomers).id,
+      createdAt: yesterday,
+      status: randomStatus(), // Completed or cancelled
+      orderType: pickOne<OrderType>(["dine_in", "pickup", "delivery"]),
+      featuredItems: true, // Use popular items
+    });
+  }
+
   const todayWindows: Array<{
     daypart: Daypart;
     count: number;
@@ -724,6 +750,8 @@ async function seed() {
       hours: { 21: 5, 22: 3 },
     },
   ];
+
+  console.log(`Created ${yesterdayOrderCount} orders for yesterday`);
 
   let todayOrderCount = 0;
 
