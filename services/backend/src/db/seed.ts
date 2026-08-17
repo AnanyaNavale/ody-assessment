@@ -5,9 +5,12 @@ import { config } from "dotenv";
 import { eq } from "drizzle-orm";
 import {
   createDb,
+  categories,
   customers,
+  insertCategorySchema,
   insertCustomerSchema,
   insertMenuItemDietaryTagSchema,
+  insertMenuItemSchema,
   insertOrderItemSchema,
   insertOrderSchema,
   insertRestaurantSettingsSchema,
@@ -146,7 +149,7 @@ function pickWeightedMenuItems<T extends { name: string }>(
   items: T[],
   count: number,
 ): T[] {
-  const featured = new Set(Object.keys(menuItemDetails));
+  const featured = featuredMenuItemNames;
   const remaining = [...items];
   const selected: T[] = [];
 
@@ -448,122 +451,272 @@ function statusForTodayOrder(createdAt: Date): OrderStatus {
   return "completed";
 }
 
-const menuItemDetails: Record<
-  string,
-  { ingredients: string; tags: DietaryTag[]; imageUrl: string }
-> = {
-  "Herb Roasted Chicken": {
-    ingredients:
-      "chicken, rosemary, lemon, garlic, olive oil, seasonal vegetables, pan jus",
-    tags: ["gluten_free", "nut_free", "dairy_free"],
-    imageUrl:
-      "https://images.unsplash.com/photo-1504670813815-f43e2383e08d?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
-  "Truffle Parmesan Fries": {
-    ingredients:
-      "potatoes, truffle oil, parmesan, chives, salt, black pepper",
+const categorySeeds = [
+  { name: "Appetizers", displayOrder: 0 },
+  { name: "Mains", displayOrder: 1 },
+  { name: "Desserts", displayOrder: 2 },
+  { name: "Beverages", displayOrder: 3 },
+] as const;
+
+type MenuItemSeed = {
+  category: (typeof categorySeeds)[number]["name"];
+  name: string;
+  description: string;
+  price: string;
+  stockQuantity: number;
+  ingredients: string;
+  tags: DietaryTag[];
+  imageUrl: string | null;
+};
+
+const menuItemSeeds: MenuItemSeed[] = [
+  {
+    category: "Appetizers",
+    name: "Truffle Parmesan Fries",
+    description: "Crispy fries finished with truffle oil, parmesan, and chives.",
+    price: "9.50",
+    stockQuantity: 40,
+    ingredients: "potatoes, truffle oil, parmesan, chives, salt, black pepper",
     tags: ["vegetarian", "nut_free"],
     imageUrl:
       "https://images.unsplash.com/photo-1682117650826-881357860ec9?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
-  "Classic Cheeseburger": {
-    ingredients:
-      "beef patty, cheddar, lettuce, tomato, pickle, onion, brioche bun, special sauce",
-    tags: ["nut_free", "spicy"],
-    imageUrl:
-      "https://images.unsplash.com/photo-1703219338500-90f646e60c1b?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
-  "Caesar Salad": {
+  {
+    category: "Appetizers",
+    name: "Caesar Salad",
+    description: "Romaine, parmesan, and garlic croutons with house Caesar.",
+    price: "12.00",
+    stockQuantity: 35,
     ingredients:
       "romaine lettuce, parmesan, garlic croutons, olive oil, lemon, anchovy",
     tags: ["nut_free", "gluten_free"],
     imageUrl:
       "https://images.unsplash.com/photo-1550304943-4f24f54ddde9?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
-  "New York Cheesecake": {
-    ingredients:
-      "cream cheese, graham cracker crust, sugar, eggs, vanilla, blueberry compote",
-    tags: ["vegetarian", "nut_free"],
-    imageUrl:
-      "https://images.unsplash.com/photo-1681725271035-7270a7464f5b?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  {
+    category: "Appetizers",
+    name: "Burrata & Heirloom Tomato",
+    description: "Creamy burrata with ripe tomatoes, basil, and olive oil.",
+    price: "14.00",
+    stockQuantity: 24,
+    ingredients: "burrata, heirloom tomato, basil, olive oil, sea salt",
+    tags: ["vegetarian", "gluten_free", "nut_free"],
+    imageUrl: null,
   },
-  "Chocolate Lava Cake": {
-    ingredients:
-      "dark chocolate, butter, eggs, sugar, flour, vanilla ice cream, raspberry",
-    tags: ["vegetarian", "nut_free"],
-    imageUrl:
-      "https://images.unsplash.com/photo-1673551490812-eaee2e9bf0ef?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  {
+    category: "Appetizers",
+    name: "Crispy Calamari",
+    description: "Lightly fried calamari with lemon aioli and chili oil.",
+    price: "15.00",
+    stockQuantity: 22,
+    ingredients: "calamari, flour, lemon, garlic aioli, chili oil, parsley",
+    tags: ["nut_free", "spicy"],
+    imageUrl: null,
   },
-  "Grilled Salmon": {
+  {
+    category: "Mains",
+    name: "Herb Roasted Chicken",
+    description: "Roasted chicken with seasonal vegetables and pan jus.",
+    price: "24.00",
+    stockQuantity: 30,
+    ingredients:
+      "chicken, rosemary, lemon, garlic, olive oil, seasonal vegetables, pan jus",
+    tags: ["gluten_free", "nut_free", "dairy_free"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1504670813815-f43e2383e08d?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  {
+    category: "Mains",
+    name: "Classic Cheeseburger",
+    description: "Cheddar burger on brioche with house special sauce.",
+    price: "18.00",
+    stockQuantity: 40,
+    ingredients:
+      "beef patty, cheddar, lettuce, tomato, pickle, onion, brioche bun, special sauce",
+    tags: ["nut_free", "spicy"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1703219338500-90f646e60c1b?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  {
+    category: "Mains",
+    name: "Grilled Salmon",
+    description: "Citrus salmon with asparagus and herbed rice.",
+    price: "28.00",
+    stockQuantity: 26,
     ingredients:
       "atlantic salmon, citrus, butter, asparagus, herbed rice, salt, pepper",
     tags: ["gluten_free", "nut_free", "spicy"],
     imageUrl:
       "https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
-  "Sparkling Citrus Spritz": {
+  {
+    category: "Mains",
+    name: "Mushroom Risotto",
+    description: "Arborio rice with mixed mushrooms, thyme, and parmesan.",
+    price: "22.00",
+    stockQuantity: 28,
+    ingredients:
+      "arborio rice, mixed mushrooms, thyme, parmesan, butter, vegetable stock",
+    tags: ["vegetarian", "gluten_free", "nut_free"],
+    imageUrl: null,
+  },
+  {
+    category: "Mains",
+    name: "Ribeye Steak",
+    description: "Grilled ribeye with roasted potatoes and chimichurri.",
+    price: "42.00",
+    stockQuantity: 18,
+    ingredients:
+      "ribeye, potatoes, garlic, chimichurri, olive oil, salt, pepper",
+    tags: ["gluten_free", "nut_free", "dairy_free"],
+    imageUrl: null,
+  },
+  {
+    category: "Desserts",
+    name: "New York Cheesecake",
+    description: "Classic cheesecake with blueberry compote.",
+    price: "11.00",
+    stockQuantity: 20,
+    ingredients:
+      "cream cheese, graham cracker crust, sugar, eggs, vanilla, blueberry compote",
+    tags: ["vegetarian", "nut_free"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1681725271035-7270a7464f5b?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  {
+    category: "Desserts",
+    name: "Chocolate Lava Cake",
+    description: "Warm chocolate cake with vanilla ice cream and raspberry.",
+    price: "12.00",
+    stockQuantity: 22,
+    ingredients:
+      "dark chocolate, butter, eggs, sugar, flour, vanilla ice cream, raspberry",
+    tags: ["vegetarian", "nut_free"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1673551490812-eaee2e9bf0ef?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  {
+    category: "Desserts",
+    name: "Seasonal Fruit Tart",
+    description: "Buttery tart shell with pastry cream and fresh fruit.",
+    price: "10.00",
+    stockQuantity: 16,
+    ingredients: "pastry, pastry cream, seasonal fruit, apricot glaze",
+    tags: ["vegetarian", "nut_free"],
+    imageUrl: null,
+  },
+  {
+    category: "Beverages",
+    name: "Sparkling Citrus Spritz",
+    description: "Sparkling water with orange, grapefruit, and mint.",
+    price: "6.00",
+    stockQuantity: 50,
     ingredients: "sparkling water, orange, grapefruit, mint, simple syrup",
     tags: ["vegan", "gluten_free", "dairy_free", "nut_free"],
     imageUrl:
       "https://images.unsplash.com/photo-1654074518426-7ef871efccce?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
-  "Cold Brew Affogato": {
+  {
+    category: "Beverages",
+    name: "Cold Brew Affogato",
+    description: "Vanilla gelato drowned in house cold brew.",
+    price: "8.00",
+    stockQuantity: 30,
     ingredients: "vanilla gelato, cold brew coffee, cocoa nibs",
     tags: ["vegetarian", "gluten_free", "nut_free"],
     imageUrl:
       "https://images.unsplash.com/photo-1642647390911-77934bc6bc33?q=80&w=1772&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
-};
+  {
+    category: "Beverages",
+    name: "House Lemonade",
+    description: "Fresh lemon, cane sugar, and a splash of soda.",
+    price: "5.00",
+    stockQuantity: 45,
+    ingredients: "lemon, cane sugar, soda water, mint",
+    tags: ["vegan", "gluten_free", "dairy_free", "nut_free"],
+    imageUrl: null,
+  },
+  {
+    category: "Beverages",
+    name: "Espresso",
+    description: "Double shot of house espresso.",
+    price: "4.00",
+    stockQuantity: 60,
+    ingredients: "espresso",
+    tags: ["vegan", "gluten_free", "dairy_free", "nut_free"],
+    imageUrl: null,
+  },
+];
 
-function detailsForMenuItem(name: string): {
-  ingredients: string;
-  tags: DietaryTag[];
-  imageUrl: string | null;
-} {
-  return (
-    menuItemDetails[name] ?? {
-      ingredients: "house ingredients",
-      tags: ["nut_free"],
-      imageUrl: null,
-    }
+const featuredMenuItemNames = new Set(
+  menuItemSeeds.filter((item) => item.imageUrl).map((item) => item.name),
+);
+
+async function seedMenu() {
+  const insertedCategories = await db
+    .insert(categories)
+    .values(
+      categorySeeds.map((category) => insertCategorySchema.parse(category)),
+    )
+    .returning();
+
+  const categoryIdByName = new Map(
+    insertedCategories.map((category) => [category.name, category.id]),
   );
-}
 
-async function seedMenuItemDetails() {
-  const existingMenuItems = await db.select().from(menuItems);
-  let taggedCount = 0;
+  const insertedMenuItems = await db
+    .insert(menuItems)
+    .values(
+      menuItemSeeds.map((item) => {
+        const categoryId = categoryIdByName.get(item.category);
 
-  for (const item of existingMenuItems) {
-    const details = detailsForMenuItem(item.name);
+        if (!categoryId) {
+          throw new Error(`Missing category for menu item: ${item.name}`);
+        }
 
-    await db
-      .update(menuItems)
-      .set({
-        ingredients: details.ingredients,
-        imageUrl: details.imageUrl,
-        updatedAt: new Date(),
-      })
-      .where(eq(menuItems.id, item.id));
+        return insertMenuItemSchema.parse({
+          categoryId,
+          name: item.name,
+          description: item.description,
+          price: item.price,
+          isAvailable: true,
+          stockQuantity: item.stockQuantity,
+          imageUrl: item.imageUrl,
+          ingredients: item.ingredients,
+        });
+      }),
+    )
+    .returning();
 
-    if (details.tags.length === 0) {
-      continue;
+  const itemIdByName = new Map(
+    insertedMenuItems.map((item) => [item.name, item.id]),
+  );
+
+  const tagRows = menuItemSeeds.flatMap((item) => {
+    const menuItemId = itemIdByName.get(item.name);
+
+    if (!menuItemId) {
+      throw new Error(`Missing menu item id for tags: ${item.name}`);
     }
 
-    await db.insert(menuItemDietaryTags).values(
-      details.tags.map((tag) =>
-        insertMenuItemDietaryTagSchema.parse({
-          menuItemId: item.id,
-          tag,
-        }),
-      ),
+    return item.tags.map((tag) =>
+      insertMenuItemDietaryTagSchema.parse({
+        menuItemId,
+        tag,
+      }),
     );
+  });
 
-    taggedCount += details.tags.length;
+  if (tagRows.length > 0) {
+    await db.insert(menuItemDietaryTags).values(tagRows);
   }
 
   console.log(
-    `Updated ingredients on ${existingMenuItems.length} menu items and added ${taggedCount} dietary tags`,
+    `Created ${insertedCategories.length} categories, ${insertedMenuItems.length} menu items, and ${tagRows.length} dietary tags`,
   );
+
+  return insertedMenuItems;
 }
 
 async function seed() {
@@ -574,18 +727,12 @@ async function seed() {
   await db.delete(orders);
   await db.delete(customers);
   await db.delete(menuItemDietaryTags);
+  await db.delete(menuItems);
+  await db.delete(categories);
   await db.delete(restaurantSettings);
   console.log("Existing data cleared");
 
-  const existingMenuItems = await db.select().from(menuItems);
-
-  if (existingMenuItems.length < 2) {
-    throw new Error(
-      "Seed requires at least 2 menu items in the database. Seed the menu first.",
-    );
-  }
-
-  await seedMenuItemDetails();
+  const existingMenuItems = await seedMenu();
 
   const insertedCustomers = await db
     .insert(customers)
