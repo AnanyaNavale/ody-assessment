@@ -49,6 +49,12 @@ pnpm db:seed
 
 ### Run locally
 
+**First, generate the API client:**
+
+```bash
+pnpm gen:contract
+```
+
 From the repository root, start the API and dashboard in separate terminals:
 
 ```bash
