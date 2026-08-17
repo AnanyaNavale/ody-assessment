@@ -501,7 +501,7 @@ const menuItemSeeds: MenuItemSeed[] = [
     stockQuantity: 24,
     ingredients: "burrata, heirloom tomato, basil, olive oil, sea salt",
     tags: ["vegetarian", "gluten_free", "nut_free"],
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1566746878447-070ebc9c0021?q=80&w=1776&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   {
     category: "Appetizers",
@@ -511,7 +511,7 @@ const menuItemSeeds: MenuItemSeed[] = [
     stockQuantity: 22,
     ingredients: "calamari, flour, lemon, garlic aioli, chili oil, parsley",
     tags: ["nut_free", "spicy"],
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1778600731531-7d836a32704c?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   {
     category: "Mains",
@@ -558,18 +558,18 @@ const menuItemSeeds: MenuItemSeed[] = [
     ingredients:
       "arborio rice, mixed mushrooms, thyme, parmesan, butter, vegetable stock",
     tags: ["vegetarian", "gluten_free", "nut_free"],
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1719726774573-3c01a65da205?q=80&w=1771&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   {
     category: "Mains",
     name: "Ribeye Steak",
     description: "Grilled ribeye with roasted potatoes and chimichurri.",
     price: "42.00",
-    stockQuantity: 18,
+    stockQuantity: 0,
     ingredients:
       "ribeye, potatoes, garlic, chimichurri, olive oil, salt, pepper",
     tags: ["gluten_free", "nut_free", "dairy_free"],
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1683315446874-e6a629087ef8?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   {
     category: "Desserts",
@@ -600,10 +600,10 @@ const menuItemSeeds: MenuItemSeed[] = [
     name: "Seasonal Fruit Tart",
     description: "Buttery tart shell with pastry cream and fresh fruit.",
     price: "10.00",
-    stockQuantity: 16,
+    stockQuantity: 0,
     ingredients: "pastry, pastry cream, seasonal fruit, apricot glaze",
     tags: ["vegetarian", "nut_free"],
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1673407599180-8e32cbebab03?q=80&w=1771&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   {
     category: "Beverages",
@@ -635,7 +635,7 @@ const menuItemSeeds: MenuItemSeed[] = [
     stockQuantity: 45,
     ingredients: "lemon, cane sugar, soda water, mint",
     tags: ["vegan", "gluten_free", "dairy_free", "nut_free"],
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1656936632107-0bfa69ea06de?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   {
     category: "Beverages",
@@ -645,7 +645,7 @@ const menuItemSeeds: MenuItemSeed[] = [
     stockQuantity: 60,
     ingredients: "espresso",
     tags: ["vegan", "gluten_free", "dairy_free", "nut_free"],
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1610889556528-9a770e32642f?q=80&w=2215&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
 ];
 

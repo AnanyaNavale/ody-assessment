@@ -1022,12 +1022,15 @@ export default function MenuScreen() {
         ) : null}
 
         <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: 16,
-            padding: 20,
-          }}
+          style={
+            {
+              display: "grid",
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              alignItems: "start",
+              gap: 16,
+              padding: 20,
+            } as object
+          }
         >
           {filteredItems.map((item) => (
             <MenuItemCard
@@ -1499,10 +1502,10 @@ function MenuItemCard({
   return (
     <View
       style={{
-        width: 240,
-        flexGrow: 1,
-        maxWidth: 320,
-        minWidth: 220,
+        width: "100%",
+        height: 368,
+        flexGrow: 0,
+        flexShrink: 0,
         backgroundColor: palette.card,
         borderRadius: 16,
         borderWidth: 1,
@@ -1553,7 +1556,7 @@ function MenuItemCard({
           </Text>
         </View>
       </View>
-      <View style={{ padding: 14, gap: 8 }}>
+      <View style={{ padding: 14, gap: 8, flex: 1 }}>
         <Text numberOfLines={1} style={{ ...serif, fontSize: 18 }}>
           {item.name}
         </Text>
