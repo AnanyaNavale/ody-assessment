@@ -12,7 +12,7 @@ import {
   type OrderWithDetails,
   type UpdateOrderStatusStatus,
 } from "@ody/api-client";
-import { fonts } from "@ody/shared";
+import { fonts, palette } from "@ody/shared";
 import { CreateOrderButton } from "../../components/CreateOrderButton";
 import { CreateOrderModal } from "../../components/CreateOrderModal";
 import { nextStatusFor } from "../../lib/order-status";
@@ -34,30 +34,6 @@ import {
 } from "react-native";
 
 const PAGE_SIZE = 20;
-
-const palette = {
-  page: "#ffe9e0",
-  card: "#ffffff",
-  ink: "#1a0800",
-  muted: "#a07060",
-  body: "#444444",
-  dim: "#777777",
-  red: "#d72400",
-  redSoft: "rgba(215, 36, 0, 0.09)",
-  teal: "#7bbfc7",
-  tealSoft: "rgba(123, 191, 199, 0.09)",
-  gold: "#c47a00",
-  goldSoft: "rgba(196, 122, 0, 0.09)",
-  green: "#16a34a",
-  greenSoft: "rgba(22, 163, 74, 0.09)",
-  kitchen: "#22c55e",
-  down: "#dc2626",
-  hairline: "#f0e8e4",
-  track: "#f5ede8",
-  tabTrack: "#fff5f2",
-  controlBorder: "rgba(215, 36, 0, 0.15)",
-  value: "#555555",
-};
 
 const serif: TextStyle = {
   fontFamily: fonts.serif,
@@ -1070,7 +1046,7 @@ const dropdownTrigger = {
   flexDirection: "row" as const,
   alignItems: "center" as const,
   gap: 6,
-  shadowColor: "#1a0800",
+  shadowColor: palette.ink,
   shadowOpacity: 0.06,
   shadowRadius: 2,
   shadowOffset: { width: 0, height: 1 },
@@ -1088,7 +1064,7 @@ const dropdownPanel = {
   borderWidth: 1,
   borderColor: palette.controlBorder,
   overflow: "hidden" as const,
-  shadowColor: "#1a0800",
+  shadowColor: palette.ink,
   shadowOpacity: 0.14,
   shadowRadius: 12,
   shadowOffset: { width: 0, height: 6 },

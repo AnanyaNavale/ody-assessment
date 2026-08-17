@@ -4,9 +4,11 @@ import {
   colors,
   elevation,
   fonts,
+  palette,
   radius,
   shadows,
   spacing,
+  statusColors,
   typography,
 } from "@ody/shared";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,12 +30,8 @@ import {
   segmentedTextTransition,
 } from "../components/SegmentedToggleBar";
 
-const page = "#ffe9e0";
-const ink = "#1a0800";
-const red = "#d72400";
-
-const sans: TextStyle = { fontFamily: fonts.sans, color: ink };
-const serif: TextStyle = { fontFamily: fonts.serif, color: ink };
+const sans: TextStyle = { fontFamily: fonts.sans, color: palette.ink };
+const serif: TextStyle = { fontFamily: fonts.serif, color: palette.ink };
 
 const SCALE_KEYS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 
@@ -52,36 +50,36 @@ const STATUS_PILLS: Array<{
   label: string;
   background: string;
   color: string;
-  icon: ComponentProps<typeof Ionicons>["name"];
+  icon: ComponentProps<typeof Ionicons>["name"]
 }> = [
   {
     label: "Pending",
-    background: "rgba(215, 36, 0, 0.12)",
-    color: "#D72400",
+    background: statusColors.pending.background,
+    color: statusColors.pending.text,
     icon: "time-outline",
   },
   {
     label: "Preparing",
-    background: "rgba(245, 158, 11, 0.15)",
-    color: "#F59E0B",
+    background: statusColors.preparing.background,
+    color: statusColors.preparing.text,
     icon: "flame-outline",
   },
   {
     label: "Ready",
-    background: "rgba(123, 191, 199, 0.18)",
-    color: "#7BBFC7",
+    background: statusColors.ready.background,
+    color: statusColors.ready.text,
     icon: "checkmark-circle-outline",
   },
   {
     label: "Completed",
-    background: "rgba(34, 197, 94, 0.15)",
-    color: "#22C55E",
+    background: statusColors.completed.background,
+    color: statusColors.completed.text,
     icon: "checkmark-outline",
   },
   {
     label: "Cancelled",
-    background: "#E5E7EB",
-    color: "#6b7280",
+    background: statusColors.cancelled.background,
+    color: statusColors.cancelled.text,
     icon: "close-outline",
   },
 ];
@@ -106,7 +104,7 @@ export default function DesignSystemScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: page }}>
+    <View style={{ flex: 1, backgroundColor: palette.page }}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
@@ -135,7 +133,7 @@ export default function DesignSystemScreen() {
               justifyContent: "center",
             }}
           >
-            <Ionicons name="arrow-back" size={18} color={ink} />
+            <Ionicons name="arrow-back" size={18} color={palette.ink} />
           </Pressable>
           <Text style={{ ...serif, fontSize: 28, letterSpacing: -0.56, lineHeight: 42 }}>
             Design system
@@ -148,7 +146,7 @@ export default function DesignSystemScreen() {
           and Settings.
         </Text>
 
-        <Section title="Color tokens" subtitle="Primary, secondary, success, error, warning, and neutral scales">
+        <Section title="Color tokens" subtitle="Scales plus the semantic palette live screens import from @ody/shared">
           {(Object.keys(colorScales) as Array<keyof typeof colorScales>).map((name) => (
             <View key={name} style={{ gap: 8, marginBottom: 12 }}>
               <Text style={{ ...sans, fontFamily: fonts.sansSemiBold, fontSize: 13, textTransform: "capitalize" }}>
@@ -163,7 +161,7 @@ export default function DesignSystemScreen() {
                         backgroundColor: colorScales[name][step],
                       }}
                     />
-                    <Text style={{ ...sans, fontSize: 10, color: "#777777" }}>
+                    <Text style={{ ...sans, fontSize: 10, color: palette.dim }}>
                       {step}
                     </Text>
                   </View>
@@ -171,15 +169,52 @@ export default function DesignSystemScreen() {
               </View>
             </View>
           ))}
+          <Text style={{ ...sans, fontFamily: fonts.sansSemiBold, fontSize: 13, marginTop: 8 }}>
+            Semantic palette
+          </Text>
+          <Text style={{ ...sans, fontSize: 12, color: palette.dim, marginBottom: 8 }}>
+            `palette` from @ody/shared — Home, Orders, Menu, Customers, and Settings use these names.
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+            {(
+              [
+                ["page", palette.page],
+                ["card", palette.card],
+                ["ink", palette.ink],
+                ["muted", palette.muted],
+                ["red", palette.red],
+                ["gold", palette.gold],
+                ["teal", palette.teal],
+                ["green", palette.green],
+                ["kitchen", palette.kitchen],
+                ["down", palette.down],
+                ["hairline", palette.hairline],
+                ["tabTrack", palette.tabTrack],
+              ] as const
+            ).map(([name, value]) => (
+              <View key={name} style={{ width: 88, gap: 4 }}>
+                <View
+                  style={{
+                    height: 44,
+                    borderRadius: 8,
+                    backgroundColor: value,
+                    borderWidth: 1,
+                    borderColor: palette.cardBorder,
+                  }}
+                />
+                <Text style={{ ...sans, fontSize: 10, color: palette.dim }}>{name}</Text>
+              </View>
+            ))}
+          </View>
         </Section>
 
         <Section title="Typography" subtitle="DM Serif Display for titles, DM Sans for UI">
           <Text style={{ ...serif, fontSize: 36 }}>Display / page title</Text>
           <Text style={{ ...serif, fontSize: 22 }}>Serif heading</Text>
-          <Text style={{ fontFamily: fonts.sansBold, fontSize: 24, color: ink }}>Sans heading</Text>
-          <Text style={{ fontFamily: fonts.sansSemiBold, fontSize: 16, color: ink }}>Subtitle / section</Text>
+          <Text style={{ fontFamily: fonts.sansBold, fontSize: 24, color: palette.ink }}>Sans heading</Text>
+          <Text style={{ fontFamily: fonts.sansSemiBold, fontSize: 16, color: palette.ink }}>Subtitle / section</Text>
           <Text style={{ ...sans, fontSize: 14 }}>Body copy for tables, forms, and descriptions.</Text>
-          <Text style={{ fontFamily: fonts.sansMedium, fontSize: 12, color: "#a07060" }}>
+          <Text style={{ fontFamily: fonts.sansMedium, fontSize: 12, color: palette.muted }}>
             LABEL / META
           </Text>
           <Text style={{ ...typography.caption }}>Caption and helper text</Text>
@@ -194,7 +229,7 @@ export default function DesignSystemScreen() {
                   style={{
                     height: 12,
                     width: value * 4,
-                    backgroundColor: red,
+                    backgroundColor: palette.red,
                     borderRadius: 2,
                     opacity: 0.75,
                   }}
@@ -213,7 +248,7 @@ export default function DesignSystemScreen() {
                 style={{
                   width: 88,
                   height: 64,
-                  backgroundColor: "#fff0ed",
+                  backgroundColor: palette.tabActiveBg,
                   borderWidth: borders.default,
                   borderColor: "rgba(215, 36, 0, 0.15)",
                   borderRadius: value === 999 ? 32 : value,
@@ -327,7 +362,7 @@ export default function DesignSystemScreen() {
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
             <Pressable
               style={{
-                backgroundColor: red,
+                backgroundColor: palette.red,
                 borderRadius: 99,
                 paddingHorizontal: 18,
                 paddingVertical: 12,
@@ -360,7 +395,7 @@ export default function DesignSystemScreen() {
             </Pressable>
             <View
               style={{
-                backgroundColor: red,
+                backgroundColor: palette.red,
                 borderRadius: 99,
                 paddingHorizontal: 18,
                 paddingVertical: 12,
@@ -441,7 +476,7 @@ export default function DesignSystemScreen() {
                 width: 32,
                 height: 32,
                 borderRadius: 16,
-                backgroundColor: red,
+                backgroundColor: palette.red,
                 alignItems: "center",
                 justifyContent: "center",
               }}
@@ -478,7 +513,7 @@ export default function DesignSystemScreen() {
                     setOrderType(option);
                     setSelectOpen(false);
                   }}
-                  style={{ paddingHorizontal: 14, paddingVertical: 12, backgroundColor: option === orderType ? "#fff0ed" : "#ffffff" }}
+                  style={{ paddingHorizontal: 14, paddingVertical: 12, backgroundColor: option === orderType ? palette.tabActiveBg : palette.card }}
                 >
                   <Text style={{ ...sans, fontSize: 14 }}>{option}</Text>
                 </Pressable>
@@ -492,7 +527,7 @@ export default function DesignSystemScreen() {
             onPress={() => setModalOpen(true)}
             style={{
               alignSelf: "flex-start",
-              backgroundColor: red,
+              backgroundColor: palette.red,
               borderRadius: 99,
               paddingHorizontal: 18,
               paddingVertical: 12,
@@ -531,7 +566,7 @@ export default function DesignSystemScreen() {
                   </Pressable>
                   <Pressable
                     onPress={() => setModalOpen(false)}
-                    style={{ backgroundColor: red, borderRadius: 99, paddingHorizontal: 16, paddingVertical: 10 }}
+                    style={{ backgroundColor: palette.red, borderRadius: 99, paddingHorizontal: 16, paddingVertical: 10 }}
                   >
                     <Text style={{ ...sans, fontFamily: fonts.sansSemiBold, color: "#ffffff" }}>Confirm</Text>
                   </Pressable>
@@ -631,7 +666,7 @@ export default function DesignSystemScreen() {
                 style={{
                   paddingHorizontal: 16,
                   paddingVertical: 12,
-                  backgroundColor: index === 1 ? "#fff0ed" : "transparent",
+                  backgroundColor: index === 1 ? palette.tabActiveBg : "transparent",
                   borderTopRightRadius: 24,
                   borderBottomRightRadius: 24,
                 }}
@@ -641,7 +676,7 @@ export default function DesignSystemScreen() {
                     ...sans,
                     fontFamily: fonts.sansSemiBold,
                     fontSize: 13,
-                    color: index === 1 ? red : "rgba(215, 36, 0, 0.55)",
+                    color: index === 1 ? palette.red : palette.tabInactive,
                   }}
                 >
                   {item}
@@ -833,7 +868,7 @@ export default function DesignSystemScreen() {
             position: "absolute",
             right: 28,
             bottom: 28,
-            backgroundColor: ink,
+            backgroundColor: palette.ink,
             borderRadius: 12,
             paddingHorizontal: 16,
             paddingVertical: 12,
@@ -905,7 +940,7 @@ function RedToggle({
         borderRadius: 13,
         padding: 2,
         justifyContent: "center",
-        backgroundColor: value ? red : "#e5e7eb",
+        backgroundColor: value ? palette.red : palette.line,
         alignSelf: "flex-start",
       }}
     >
@@ -995,7 +1030,7 @@ function PopularItemExample({
             position: "absolute",
             left: 7,
             top: 7,
-            backgroundColor: red,
+            backgroundColor: palette.red,
             borderRadius: 5,
             paddingHorizontal: 6,
             paddingVertical: 2,
@@ -1104,7 +1139,7 @@ function MenuItemExample({
         <Text numberOfLines={2} style={{ ...sans, fontSize: 12, color: "#a07060", minHeight: 36 }}>
           {description}
         </Text>
-        <Text style={{ ...sans, fontSize: 16, fontFamily: fonts.sansBold, color: red }}>
+        <Text style={{ ...sans, fontSize: 16, fontFamily: fonts.sansBold, color: palette.red }}>
           {price}
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -1132,7 +1167,7 @@ function CustomerOrderCardExample({ images }: { images: string[] }) {
         shadowOffset: { width: 0, height: 1 },
       }}
     >
-      <View style={{ flexDirection: "row", height: 88, backgroundColor: "#fff5f2" }}>
+      <View style={{ flexDirection: "row", height: 88, backgroundColor: palette.tabTrack }}>
         {images.map((url) => (
           <Image
             key={url}
@@ -1145,7 +1180,7 @@ function CustomerOrderCardExample({ images }: { images: string[] }) {
       <View style={{ paddingHorizontal: 16, paddingVertical: 14, gap: 10 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
           <View style={{ gap: 4 }}>
-            <Text style={{ ...sans, fontSize: 15, fontFamily: fonts.sansBold, color: red }}>
+            <Text style={{ ...sans, fontSize: 15, fontFamily: fonts.sansBold, color: palette.red }}>
               #A1B2C3D4
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -1185,7 +1220,7 @@ function CustomerOrderRowExample({ images }: { images: string[] }) {
       <Text style={{ ...sans, fontSize: 12, fontFamily: fonts.sansMedium, color: "#a07060", width: 24 }}>
         1
       </Text>
-      <Text style={{ ...sans, fontSize: 13, fontFamily: fonts.sansBold, color: red, width: 92 }}>
+      <Text style={{ ...sans, fontSize: 13, fontFamily: fonts.sansBold, color: palette.red, width: 92 }}>
         #A1B2C3D4
       </Text>
       <View style={{ width: 88, gap: 1 }}>
@@ -1223,7 +1258,7 @@ function fieldStyle(state: "default" | "focus" | "error" | "disabled") {
     state === "error"
       ? "#dc2626"
       : state === "focus"
-        ? red
+        ? palette.red
         : "rgba(215, 36, 0, 0.15)";
 
   return {
@@ -1235,7 +1270,7 @@ function fieldStyle(state: "default" | "focus" | "error" | "disabled") {
     paddingVertical: 12,
     fontFamily: fonts.sans,
     fontSize: 14,
-    color: ink,
+    color: palette.ink,
     opacity: state === "disabled" ? 0.7 : 1,
   };
 }

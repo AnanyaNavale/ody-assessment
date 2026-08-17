@@ -4,7 +4,7 @@ import {
   type DashboardStats,
   type PopularItem,
 } from "@ody/api-client";
-import { fonts } from "@ody/shared";
+import { fonts, palette } from "@ody/shared";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useRef, type ReactNode } from "react";
@@ -17,33 +17,6 @@ import {
   type TextStyle,
   type ViewStyle,
 } from "react-native";
-
-const palette = {
-  page: "#ffe9e0",
-  card: "#ffffff",
-  ink: "#1a0800",
-  muted: "#a07060",
-  body: "#444444",
-  dim: "#777777",
-  legend: "#999999",
-  hour: "#b09080",
-  axis: "#c0a898",
-  red: "#d72400",
-  redSoft: "rgba(215, 36, 0, 0.09)",
-  teal: "#7bbfc7",
-  tealSoft: "rgba(123, 191, 199, 0.09)",
-  gold: "#c47a00",
-  goldSoft: "rgba(196, 122, 0, 0.09)",
-  green: "#16a34a",
-  down: "#dc2626",
-  kitchen: "#22c55e",
-  pendingBar: "#f59e0b",
-  track: "#f5ede8",
-  bar: "#ffd6ca",
-  cancelled: "#e5e7eb",
-  hairline: "#f0e8e4",
-  footerBorder: "rgba(215, 36, 0, 0.1)",
-};
 
 const serif: TextStyle = {
   fontFamily: fonts.serif,

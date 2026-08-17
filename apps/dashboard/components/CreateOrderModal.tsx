@@ -9,7 +9,7 @@ import {
   useUpdateCustomer,
   type MenuItem,
 } from "@ody/api-client";
-import { fonts } from "@ody/shared";
+import { fonts, palette } from "@ody/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, type ReactNode } from "react";
@@ -22,21 +22,6 @@ import {
   View,
   type TextStyle,
 } from "react-native";
-
-const palette = {
-  card: "#ffffff",
-  ink: "#1a0800",
-  muted: "#a07060",
-  dim: "#777777",
-  red: "#d72400",
-  down: "#dc2626",
-  kitchen: "#22c55e",
-  hairline: "#f0e8e4",
-  tabTrack: "#fff5f2",
-  controlBorder: "rgba(215, 36, 0, 0.15)",
-  cardBorder: "rgba(215, 36, 0, 0.06)",
-  placeholder: "rgba(51, 51, 51, 0.5)",
-};
 
 const serif: TextStyle = {
   fontFamily: fonts.serif,

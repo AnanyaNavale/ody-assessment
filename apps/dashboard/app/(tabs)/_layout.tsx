@@ -1,13 +1,8 @@
-import { fonts } from "@ody/shared";
+import { fonts, palette } from "@ody/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import type { ComponentProps } from "react";
 import { Pressable, Text, View } from "react-native";
-
-const ACTIVE = "#d72400";
-const INACTIVE = "rgba(215, 36, 0, 0.55)";
-const ACTIVE_BG = "#fff0ed";
-const BORDER = "rgba(215, 36, 0, 0.1)";
 
 const TAB_ICONS: Record<
   string,
@@ -51,9 +46,9 @@ function SideTabBar({
     <View
       style={{
         width: 220,
-        backgroundColor: "#ffffff",
+        backgroundColor: palette.card,
         borderRightWidth: 1,
-        borderRightColor: BORDER,
+        borderRightColor: palette.sidebarBorder,
         justifyContent: "space-between",
       }}
     >
@@ -84,7 +79,7 @@ function SideTabBar({
               }}
               style={{
                 marginRight: 12,
-                backgroundColor: focused ? ACTIVE_BG : "transparent",
+                backgroundColor: focused ? palette.tabActiveBg : "transparent",
                 borderTopRightRadius: 24,
                 borderBottomRightRadius: 24,
                 paddingVertical: 11,
@@ -105,21 +100,21 @@ function SideTabBar({
                     height: 36,
                     borderTopRightRadius: 4,
                     borderBottomRightRadius: 4,
-                    backgroundColor: ACTIVE,
+                    backgroundColor: palette.red,
                   }}
                 />
               ) : null}
               <Ionicons
                 name={icon}
                 size={22}
-                color={focused ? ACTIVE : INACTIVE}
+                color={focused ? palette.red : palette.tabInactive}
               />
               <Text
                 style={{
                   fontFamily: focused ? fonts.sansSemiBold : fonts.sans,
                   fontSize: 14,
                   lineHeight: 21,
-                  color: focused ? ACTIVE : INACTIVE,
+                  color: focused ? palette.red : palette.tabInactive,
                 }}
               >
                 {label}
@@ -132,7 +127,7 @@ function SideTabBar({
         style={{
           display: "none",
           borderTopWidth: 1,
-          borderTopColor: BORDER,
+          borderTopColor: palette.sidebarBorder,
           paddingHorizontal: 20,
           paddingVertical: 16,
           alignItems: "flex-end",
@@ -143,12 +138,12 @@ function SideTabBar({
             width: 32,
             height: 32,
             borderRadius: 8,
-            backgroundColor: ACTIVE_BG,
+            backgroundColor: palette.tabActiveBg,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Ionicons name="chevron-back" size={18} color={ACTIVE} />
+          <Ionicons name="chevron-back" size={18} color={palette.red} />
         </View>
       </View>
     </View>

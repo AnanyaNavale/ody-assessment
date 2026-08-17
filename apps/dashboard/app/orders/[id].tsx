@@ -7,7 +7,7 @@ import {
   useUpdateOrderStatus,
   type UpdateOrderStatusStatus,
 } from "@ody/api-client";
-import { fonts } from "@ody/shared";
+import { fonts, palette, statusColors } from "@ody/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter, type Href } from "expo-router";
@@ -23,28 +23,15 @@ import {
   type TextStyle,
 } from "react-native";
 
-const palette = {
-  page: "#ffe9e0",
-  card: "#ffffff",
-  ink: "#1a0800",
-  muted: "#a07060",
-  body: "#444444",
-  dim: "#777777",
-  axis: "#c0a898",
-  red: "#d72400",
-  kitchen: "#22c55e",
-  down: "#dc2626",
-  hairline: "#f0e8e4",
-  itemLine: "#faf0eb",
-  track: "#e5e7eb",
-  inactive: "#9ca3af",
-  cardBorder: "rgba(215, 36, 0, 0.06)",
-  avatarBorder: "rgba(215, 36, 0, 0.15)",
-  avatarBg: "#fff0ed",
-  sidebarBorder: "rgba(215, 36, 0, 0.1)",
-  tabInactive: "rgba(215, 36, 0, 0.55)",
-  tabActiveBg: "#fff0ed",
-};
+const FLOW_STAGES = [
+  { status: "pending", label: "Pending", icon: "time-outline" },
+  { status: "preparing", label: "Preparing", icon: "flame-outline" },
+  { status: "ready", label: "Ready", icon: "checkmark-outline" },
+  { status: "completed", label: "Completed", icon: "checkmark-done-outline" },
+] as const;
+
+const NODE_SIZE = 52;
+const ACTIVE_HALO = 62;
 
 const serif: TextStyle = {
   fontFamily: fonts.serif,
@@ -56,43 +43,33 @@ const sans: TextStyle = {
   color: palette.ink,
 };
 
-const FLOW_STAGES = [
-  { status: "pending", label: "Pending", icon: "time-outline" },
-  { status: "preparing", label: "Preparing", icon: "flame-outline" },
-  { status: "ready", label: "Ready", icon: "checkmark-outline" },
-  { status: "completed", label: "Completed", icon: "checkmark-done-outline" },
-] as const;
-
-const NODE_SIZE = 52;
-const ACTIVE_HALO = 62;
-
 const STATUS_BADGE: Record<
   string,
   { background: string; color: string; icon: ComponentProps<typeof Ionicons>["name"] }
 > = {
   pending: {
-    background: "rgba(196, 122, 0, 0.1)",
-    color: "#c47a00",
+    background: statusColors.pending.background,
+    color: statusColors.pending.text,
     icon: "time-outline",
   },
   preparing: {
-    background: "rgba(245, 158, 11, 0.15)",
-    color: "#F59E0B",
+    background: statusColors.preparing.background,
+    color: statusColors.preparing.text,
     icon: "flame-outline",
   },
   ready: {
-    background: "rgba(123, 191, 199, 0.18)",
-    color: "#7BBFC7",
+    background: statusColors.ready.background,
+    color: statusColors.ready.text,
     icon: "checkmark-circle-outline",
   },
   completed: {
-    background: "rgba(34, 197, 94, 0.08)",
-    color: "#16a34a",
+    background: statusColors.completed.background,
+    color: statusColors.completed.text,
     icon: "checkmark-outline",
   },
   cancelled: {
-    background: "#E5E7EB",
-    color: "#6b7280",
+    background: statusColors.cancelled.background,
+    color: statusColors.cancelled.text,
     icon: "close-outline",
   },
 };
@@ -445,16 +422,16 @@ export default function OrderDetailScreen() {
                   </View>
                   {completedAt ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                      <Ionicons name="checkmark-outline" size={14} color="#16a34a" />
-                      <Text style={{ ...sans, fontSize: 13, color: "#16a34a" }}>
+                      <Ionicons name="checkmark-outline" size={14} color={palette.green} />
+                      <Text style={{ ...sans, fontSize: 13, color: palette.green }}>
                         Completed at {formatTime(completedAt)}
                       </Text>
                     </View>
                   ) : null}
                   {cancelledAt ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                      <Ionicons name="close-outline" size={14} color="#6b7280" />
-                      <Text style={{ ...sans, fontSize: 13, color: "#6b7280" }}>
+                      <Ionicons name="close-outline" size={14} color={statusColors.cancelled.text} />
+                      <Text style={{ ...sans, fontSize: 13, color: statusColors.cancelled.text }}>
                         Cancelled at {formatTime(cancelledAt)}
                       </Text>
                     </View>
@@ -580,7 +557,7 @@ export default function OrderDetailScreen() {
                             marginHorizontal: 4,
                             borderTopWidth: 2,
                             borderStyle: "dashed",
-                            borderColor: segmentComplete ? palette.red : palette.track,
+                            borderColor: segmentComplete ? palette.red : palette.line,
                           }}
                         />
                       ) : null}
@@ -601,7 +578,7 @@ export default function OrderDetailScreen() {
                   icon="close-outline"
                   reached={order.status === "cancelled"}
                   active={order.status === "cancelled"}
-                  fill={order.status === "cancelled" ? "#6b7280" : palette.red}
+                  fill={order.status === "cancelled" ? statusColors.cancelled.text : palette.red}
                   canSelect={
                     !updateStatus.isPending &&
                     canTransitionTo(order.status, "cancelled")
@@ -635,7 +612,7 @@ export default function OrderDetailScreen() {
                           borderRadius: 22,
                           backgroundColor: palette.avatarBg,
                           borderWidth: 1,
-                          borderColor: palette.avatarBorder,
+                          borderColor: palette.controlBorder,
                           alignItems: "center",
                           justifyContent: "center",
                         }}
@@ -751,7 +728,7 @@ export default function OrderDetailScreen() {
                               width: 52,
                               height: 52,
                               borderRadius: 10,
-                              backgroundColor: "#f5ede8",
+                              backgroundColor: palette.track,
                               overflow: "hidden",
                             }}
                           >
@@ -901,7 +878,7 @@ export default function OrderDetailScreen() {
                         style={{
                           minHeight: 72,
                           borderRadius: 10,
-                          backgroundColor: "#fffaf8",
+                          backgroundColor: palette.inputBg,
                           borderWidth: 1,
                           borderColor: palette.hairline,
                           paddingHorizontal: 12,
@@ -1043,7 +1020,7 @@ function ProgressNode({
               width: ACTIVE_HALO,
               height: ACTIVE_HALO,
               borderRadius: ACTIVE_HALO / 2,
-              backgroundColor: "rgba(215, 36, 0, 0.14)",
+              backgroundColor: palette.redHalo,
             }}
           />
         ) : null}
@@ -1060,7 +1037,7 @@ function ProgressNode({
               ? fill
               : hover.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [palette.track, "rgba(215, 36, 0, 0.45)"],
+                  outputRange: [palette.line, palette.redHover],
                 }),
             opacity: past ? 0.7 : 1,
           }}

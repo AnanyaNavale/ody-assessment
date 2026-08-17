@@ -771,7 +771,7 @@ async function seed() {
 
   await db.insert(restaurantSettings).values(
     insertRestaurantSettingsSchema.parse({
-      restaurantName: "Ember & Co.",
+      restaurantName: "Odyssey Bistro",
       prepTimeMinutes: 18,
       autoAcceptOrders: false,
       serviceAvailable: true,

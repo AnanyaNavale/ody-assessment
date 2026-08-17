@@ -1,3 +1,4 @@
+import { palette } from "@ody/shared";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Animated,
@@ -9,8 +10,8 @@ import {
   type ViewStyle,
 } from "react-native";
 
-const TRACK = "#fff5f2";
-const PILL = "#d72400";
+const TRACK = palette.tabTrack;
+const PILL = palette.red;
 
 const webPillTransition =
   Platform.OS === "web"

@@ -1,24 +1,3 @@
-export const colors = {
-  background: "#ffffff",
-  surface: "#f9fafb",
-  border: "#e5e7eb",
-  text: "#111827",
-  muted: "#6b7280",
-  skeleton: "#e5e7eb",
-  pending: { background: "#fef3c7", text: "#92400e" },
-  preparing: { background: "#dbeafe", text: "#1e40af" },
-  ready: { background: "#d1fae5", text: "#065f46" },
-  completed: { background: "#e5e7eb", text: "#374151" },
-  cancelled: { background: "#fee2e2", text: "#991b1b" },
-  selected: { background: "#111827", text: "#ffffff" },
-  primary: { background: "#2563eb", text: "#ffffff" },
-  danger: { background: "#dc2626", text: "#ffffff" },
-  warning: { background: "#ffedd5", text: "#9a3412" },
-  dine_in: { background: "#ede9fe", text: "#5b21b6" },
-  pickup: { background: "#ccfbf1", text: "#115e59" },
-  delivery: { background: "#e0e7ff", text: "#3730a3" },
-};
-
 export const colorScales = {
   primary: {
     50: "#fff0ed",
@@ -94,6 +73,103 @@ export const colorScales = {
   },
 } as const;
 
+/** Semantic dashboard colors — the values screens previously copied locally. */
+export const palette = {
+  page: colorScales.secondary[100],
+  card: "#ffffff",
+  ink: colorScales.secondary[900],
+  muted: colorScales.secondary[600],
+  body: "#444444",
+  dim: "#777777",
+  legend: "#999999",
+  hour: "#b09080",
+  axis: "#c0a898",
+  value: "#555555",
+  white: "#ffffff",
+  red: colorScales.primary[500],
+  redSoft: "rgba(215, 36, 0, 0.09)",
+  redHalo: "rgba(215, 36, 0, 0.14)",
+  redHover: "rgba(215, 36, 0, 0.45)",
+  teal: "#7bbfc7",
+  tealSoft: "rgba(123, 191, 199, 0.09)",
+  gold: "#c47a00",
+  goldSoft: "rgba(196, 122, 0, 0.1)",
+  green: colorScales.success[600],
+  greenSoft: "rgba(22, 163, 74, 0.09)",
+  kitchen: colorScales.success[500],
+  down: colorScales.error[500],
+  pendingBar: colorScales.warning[500],
+  track: "#f5ede8",
+  bar: "#ffd6ca",
+  line: colorScales.neutral[200],
+  hairline: "#f0e8e4",
+  itemLine: "#faf0eb",
+  inputBg: "#fffaf8",
+  tabTrack: "#fff5f2",
+  tabActiveBg: colorScales.primary[50],
+  avatarBg: colorScales.primary[50],
+  controlBorder: "rgba(215, 36, 0, 0.15)",
+  cardBorder: "rgba(215, 36, 0, 0.06)",
+  sidebarBorder: "rgba(215, 36, 0, 0.1)",
+  footerBorder: "rgba(215, 36, 0, 0.1)",
+  tabInactive: "rgba(215, 36, 0, 0.55)",
+  dashed: "rgba(215, 36, 0, 0.22)",
+  placeholder: "rgba(51, 51, 51, 0.5)",
+  inactive: colorScales.neutral[400],
+  cancelled: colorScales.neutral[200],
+} as const;
+
+export const statusColors = {
+  pending: {
+    background: palette.goldSoft,
+    text: palette.gold,
+  },
+  preparing: {
+    background: "rgba(245, 158, 11, 0.15)",
+    text: colorScales.warning[500],
+  },
+  ready: {
+    background: "rgba(123, 191, 199, 0.18)",
+    text: palette.teal,
+  },
+  completed: {
+    background: "rgba(34, 197, 94, 0.08)",
+    text: palette.green,
+  },
+  cancelled: {
+    background: palette.line,
+    text: colorScales.neutral[500],
+  },
+} as const;
+
+export const colors = {
+  page: palette.page,
+  card: palette.card,
+  background: palette.card,
+  surface: palette.inputBg,
+  border: palette.hairline,
+  text: palette.ink,
+  muted: palette.muted,
+  skeleton: palette.line,
+  ink: palette.ink,
+  red: palette.red,
+  primary: { background: palette.red, text: palette.white },
+  danger: { background: palette.down, text: palette.white },
+  selected: { background: palette.ink, text: palette.white },
+  warning: {
+    background: colorScales.warning[100],
+    text: colorScales.warning[800],
+  },
+  pending: statusColors.pending,
+  preparing: statusColors.preparing,
+  ready: statusColors.ready,
+  completed: statusColors.completed,
+  cancelled: statusColors.cancelled,
+  dine_in: { background: "#ede9fe", text: "#5b21b6" },
+  pickup: { background: "#ccfbf1", text: "#115e59" },
+  delivery: { background: "#e0e7ff", text: "#3730a3" },
+} as const;
+
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -127,21 +203,21 @@ export const shadows = {
     elevation: 0,
   },
   sm: {
-    shadowColor: "#1a0800",
+    shadowColor: palette.ink,
     shadowOpacity: 0.06,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
   md: {
-    shadowColor: "#1a0800",
+    shadowColor: palette.ink,
     shadowOpacity: 0.1,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
   lg: {
-    shadowColor: "#1a0800",
+    shadowColor: palette.ink,
     shadowOpacity: 0.16,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },

@@ -3,7 +3,7 @@ import {
   useGetSettings,
   useUpdateSettings,
 } from "@ody/api-client";
-import { fonts } from "@ody/shared";
+import { fonts, palette } from "@ody/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, type Href } from "expo-router";
@@ -24,24 +24,6 @@ import {
   isSettingsSaveDisabled,
   normalizeTime,
 } from "../../lib/settings-form";
-
-const palette = {
-  page: "#ffe9e0",
-  card: "#ffffff",
-  ink: "#1a0800",
-  muted: "#a07060",
-  dim: "#777777",
-  red: "#d72400",
-  kitchen: "#22c55e",
-  down: "#dc2626",
-  hairline: "#f0e8e4",
-  tabTrack: "#fff5f2",
-  controlBorder: "rgba(215, 36, 0, 0.15)",
-  cardBorder: "rgba(215, 36, 0, 0.06)",
-  dashed: "rgba(215, 36, 0, 0.22)",
-  placeholder: "rgba(51, 51, 51, 0.5)",
-  inputBg: "#fffaf8",
-};
 
 const serif: TextStyle = {
   fontFamily: fonts.serif,

@@ -11,7 +11,7 @@ import {
   type Category,
   type MenuItem,
 } from "@ody/api-client";
-import { fonts } from "@ody/shared";
+import { fonts, palette } from "@ody/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
@@ -38,23 +38,6 @@ import {
   View,
   type TextStyle,
 } from "react-native";
-
-const palette = {
-  page: "#ffe9e0",
-  card: "#ffffff",
-  ink: "#1a0800",
-  muted: "#a07060",
-  dim: "#b09080",
-  axis: "#c0a898",
-  red: "#d72400",
-  kitchen: "#22c55e",
-  down: "#dc2626",
-  hairline: "#f0e8e4",
-  tabTrack: "#fff5f2",
-  controlBorder: "rgba(215, 36, 0, 0.15)",
-  cardBorder: "rgba(215, 36, 0, 0.06)",
-  placeholder: "rgba(51, 51, 51, 0.5)",
-};
 
 const serif: TextStyle = {
   fontFamily: fonts.serif,
@@ -153,6 +136,14 @@ function formFromItem(item: MenuItem): ItemFormState {
     stockQuantity: item.stockQuantity === null ? "" : String(item.stockQuantity),
     imageUrl: item.imageUrl ?? "",
   };
+}
+
+function itemMatchesSearch(item: MenuItem, needle: string): boolean {
+  if (!needle) {
+    return true;
+  }
+
+  return [item.name, item.description ?? ""].join(" ").toLowerCase().includes(needle);
 }
 
 function validateForm(form: ItemFormState): string | null {
@@ -373,16 +364,38 @@ export default function MenuScreen() {
         return false;
       }
 
-      if (!needle) {
-        return true;
-      }
-
-      return [item.name, item.description ?? ""]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle);
+      return itemMatchesSearch(item, needle);
     });
   }, [activeCategoryId, menuItems, search]);
+
+  useEffect(() => {
+    const needle = search.trim().toLowerCase();
+
+    if (!needle || categories.length === 0) {
+      return;
+    }
+
+    const matches = menuItems.filter((item) => itemMatchesSearch(item, needle));
+
+    if (matches.length === 0) {
+      return;
+    }
+
+    const currentTabId = selectedCategoryId ?? categories[0]?.id ?? null;
+    const currentTabHasMatch = matches.some((item) => item.categoryId === currentTabId);
+
+    if (currentTabHasMatch) {
+      return;
+    }
+
+    const nextCategory = categories.find((category) =>
+      matches.some((item) => item.categoryId === category.id),
+    );
+
+    if (nextCategory) {
+      setSelectedCategoryId(nextCategory.id);
+    }
+  }, [search, menuItems, categories, selectedCategoryId]);
 
   const availableCount = menuItems.filter((item) => item.stockQuantity !== 0).length;
   const requiredReady = hasRequiredItemFields(formWithCategory);
@@ -558,7 +571,7 @@ export default function MenuScreen() {
             }}
           >
             <Text style={{ ...serif, fontSize: 17, lineHeight: 25.5 }}>Categories</Text>
-            <Text style={{ ...sans, fontSize: 12, color: palette.dim, marginTop: 3 }}>
+            <Text style={{ ...sans, fontSize: 12, color: palette.hour, marginTop: 3 }}>
               Drag rows to reorder
             </Text>
           </View>
@@ -1003,7 +1016,9 @@ export default function MenuScreen() {
           </View>
         ) : null}
         {!menuItemsQuery.isLoading && filteredItems.length === 0 ? (
-          <Text style={{ ...sans, padding: 24, color: palette.muted }}>No menu items</Text>
+          <Text style={{ ...sans, padding: 24, color: palette.muted }}>
+            {search.trim() ? "No menu items match this search" : "No menu items"}
+          </Text>
         ) : null}
 
         <View
@@ -1039,12 +1054,12 @@ export default function MenuScreen() {
             borderTopColor: palette.hairline,
           }}
         >
-          <Text style={{ ...sans, fontSize: 12, color: palette.dim }}>
+          <Text style={{ ...sans, fontSize: 12, color: palette.hour }}>
             Showing {filteredItems.length}{" "}
             {filteredItems.length === 1 ? "item" : "items"}
             {activeCategory ? ` in ${activeCategory.name}` : ""}
           </Text>
-          <Text style={{ ...sans, fontSize: 12, color: palette.dim }}>
+          <Text style={{ ...sans, fontSize: 12, color: palette.hour }}>
             {availableCount} of {menuItems.length} items available
           </Text>
         </View>
@@ -1254,7 +1269,7 @@ function ImageUploadField({
           <Image source={{ uri }} style={{ width: 200, height: 200 }} resizeMode="cover" />
         ) : (
           <View style={{ alignItems: "center", gap: 8, paddingHorizontal: 12 }}>
-            <Ionicons name="image-outline" size={28} color={palette.dim} />
+            <Ionicons name="image-outline" size={28} color={palette.hour} />
             <Text
               style={{
                 ...sans,
@@ -1549,8 +1564,8 @@ function MenuItemCard({
           {formatMoney(item.price)}
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Ionicons name="layers-outline" size={14} color={palette.dim} />
-          <Text style={{ ...sans, fontSize: 12, color: palette.dim }}>
+          <Ionicons name="layers-outline" size={14} color={palette.hour} />
+          <Text style={{ ...sans, fontSize: 12, color: palette.hour }}>
             {item.stockQuantity === null ? "Unlimited" : `${item.stockQuantity} left`}
           </Text>
         </View>

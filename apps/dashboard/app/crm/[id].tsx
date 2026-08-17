@@ -4,7 +4,7 @@ import {
   useGetSettings,
   type OrderWithDetails,
 } from "@ody/api-client";
-import { fonts } from "@ody/shared";
+import { fonts, palette, statusColors } from "@ody/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, type Href } from "expo-router";
 import { useMemo, useState, type ComponentProps } from "react";
@@ -17,26 +17,6 @@ import {
   type TextStyle,
 } from "react-native";
 import { SegmentedToggleBar } from "../../components/SegmentedToggleBar";
-
-const palette = {
-  page: "#ffe9e0",
-  card: "#ffffff",
-  ink: "#1a0800",
-  muted: "#a07060",
-  dim: "#777777",
-  red: "#d72400",
-  kitchen: "#22c55e",
-  down: "#dc2626",
-  hairline: "#f0e8e4",
-  cardBorder: "rgba(215, 36, 0, 0.06)",
-  controlBorder: "rgba(215, 36, 0, 0.15)",
-  redSoft: "rgba(215, 36, 0, 0.09)",
-  tabTrack: "#fff5f2",
-  value: "#555555",
-  sidebarBorder: "rgba(215, 36, 0, 0.1)",
-  tabInactive: "rgba(215, 36, 0, 0.55)",
-  tabActiveBg: "#fff0ed",
-};
 
 const serif: TextStyle = {
   fontFamily: fonts.serif,
@@ -53,28 +33,28 @@ const STATUS_BADGE: Record<
   { background: string; color: string; icon: ComponentProps<typeof Ionicons>["name"] }
 > = {
   pending: {
-    background: "rgba(196, 122, 0, 0.1)",
-    color: "#c47a00",
+    background: statusColors.pending.background,
+    color: statusColors.pending.text,
     icon: "time-outline",
   },
   preparing: {
-    background: "rgba(245, 158, 11, 0.15)",
-    color: "#F59E0B",
+    background: statusColors.preparing.background,
+    color: statusColors.preparing.text,
     icon: "flame-outline",
   },
   ready: {
-    background: "rgba(123, 191, 199, 0.18)",
-    color: "#7BBFC7",
+    background: statusColors.ready.background,
+    color: statusColors.ready.text,
     icon: "checkmark-circle-outline",
   },
   completed: {
-    background: "rgba(34, 197, 94, 0.08)",
-    color: "#16a34a",
+    background: statusColors.completed.background,
+    color: statusColors.completed.text,
     icon: "checkmark-outline",
   },
   cancelled: {
-    background: "#E5E7EB",
-    color: "#6b7280",
+    background: statusColors.cancelled.background,
+    color: statusColors.cancelled.text,
     icon: "close-outline",
   },
 };
@@ -818,7 +798,7 @@ const dropdownTrigger = {
   flexDirection: "row" as const,
   alignItems: "center" as const,
   gap: 6,
-  shadowColor: "#1a0800",
+  shadowColor: palette.ink,
   shadowOpacity: 0.06,
   shadowRadius: 2,
   shadowOffset: { width: 0, height: 1 },
@@ -836,7 +816,7 @@ const dropdownPanel = {
   borderWidth: 1,
   borderColor: palette.controlBorder,
   overflow: "hidden" as const,
-  shadowColor: "#1a0800",
+  shadowColor: palette.ink,
   shadowOpacity: 0.14,
   shadowRadius: 12,
   shadowOffset: { width: 0, height: 6 },
@@ -942,7 +922,7 @@ function OrderHistoryCard({
         style={{
           flexDirection: "row",
           height: 88,
-          backgroundColor: "#fff5f2",
+          backgroundColor: palette.tabTrack,
         }}
       >
         {visible.length === 0 ? (
@@ -965,7 +945,7 @@ function OrderHistoryCard({
               width: 48,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: "#fff0ed",
+              backgroundColor: palette.tabActiveBg,
             }}
           >
             <Text style={{ ...sans, fontSize: 13, fontFamily: fonts.sansSemiBold, color: palette.red }}>
