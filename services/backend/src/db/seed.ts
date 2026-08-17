@@ -34,7 +34,8 @@ if (!databaseUrl) {
 const db = createDb(databaseUrl);
 
 const TAX_RATE = 0.08;
-const ORDER_COUNT = 28;
+const HISTORICAL_ORDER_COUNT = 28;
+const RESTAURANT_TIME_ZONE = "America/Los_Angeles";
 
 const customerSeeds = [
   {
@@ -167,10 +168,271 @@ function randomStatus(): OrderStatus {
   return "cancelled";
 }
 
-function randomRecentDate(): Date {
-  const now = Date.now();
-  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-  return new Date(now - Math.random() * thirtyDaysMs);
+function restaurantNowParts(): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} {
+  return zonedParts(new Date());
+}
+
+function zonedParts(date: Date): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: RESTAURANT_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const read = (type: string): number =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+
+  return {
+    year: read("year"),
+    month: read("month"),
+    day: read("day"),
+    hour: read("hour"),
+    minute: read("minute"),
+    second: read("second"),
+  };
+}
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const read = (type: string): number =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+
+  const asUtc = Date.UTC(
+    read("year"),
+    read("month") - 1,
+    read("day"),
+    read("hour"),
+    read("minute"),
+    read("second"),
+  );
+
+  return asUtc - date.getTime();
+}
+
+function zonedDate(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+): Date {
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second);
+  let instant = new Date(utcGuess);
+
+  for (let index = 0; index < 3; index += 1) {
+    const offset = getTimeZoneOffsetMs(instant, RESTAURANT_TIME_ZONE);
+    instant = new Date(utcGuess - offset);
+  }
+
+  return instant;
+}
+
+function randomHistoricalDate(): Date {
+  const today = restaurantNowParts();
+  const daysAgo = randomInt(1, 30);
+  const historical = zonedDate(
+    today.year,
+    today.month,
+    today.day,
+    randomInt(7, 22),
+    randomInt(0, 59),
+    randomInt(0, 59),
+  );
+
+  return new Date(historical.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+}
+
+function pickWeightedHour(weights: Record<number, number>): number {
+  const entries = Object.entries(weights).map(
+    ([hour, weight]) => [Number(hour), weight] as const,
+  );
+  const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
+  let roll = Math.random() * total;
+
+  for (const [hour, weight] of entries) {
+    roll -= weight;
+
+    if (roll <= 0) {
+      return hour;
+    }
+  }
+
+  return entries[entries.length - 1]?.[0] ?? 12;
+}
+
+function todayDateAt(hour: number): Date {
+  const today = restaurantNowParts();
+
+  return zonedDate(
+    today.year,
+    today.month,
+    today.day,
+    hour,
+    randomInt(0, 59),
+    randomInt(0, 59),
+  );
+}
+
+const PREP_TIME_MINUTES = 15;
+
+function completedAtFor(createdAt: Date): Date {
+  const completedAt = new Date(
+    createdAt.getTime() + PREP_TIME_MINUTES * 60 * 1000,
+  );
+  const createdParts = zonedParts(createdAt);
+  const completedParts = zonedParts(completedAt);
+  const sameLocalDay =
+    createdParts.year === completedParts.year &&
+    createdParts.month === completedParts.month &&
+    createdParts.day === completedParts.day;
+
+  if (sameLocalDay && completedAt.getTime() > createdAt.getTime()) {
+    return completedAt;
+  }
+
+  const endOfLocalDay = zonedDate(
+    createdParts.year,
+    createdParts.month,
+    createdParts.day,
+    23,
+    59,
+    59,
+  );
+
+  if (endOfLocalDay.getTime() > createdAt.getTime()) {
+    return endOfLocalDay;
+  }
+
+  return new Date(createdAt.getTime() + 60 * 1000);
+}
+
+type Daypart =
+  | "breakfast"
+  | "lunch"
+  | "afternoon"
+  | "dinner"
+  | "late_night";
+
+function randomOrderTypeForDaypart(daypart: Daypart): OrderType {
+  const roll = Math.random();
+
+  if (daypart === "breakfast") {
+    if (roll < 0.45) {
+      return "pickup";
+    }
+
+    if (roll < 0.85) {
+      return "dine_in";
+    }
+
+    return "delivery";
+  }
+
+  if (daypart === "lunch") {
+    if (roll < 0.4) {
+      return "dine_in";
+    }
+
+    if (roll < 0.75) {
+      return "pickup";
+    }
+
+    return "delivery";
+  }
+
+  if (daypart === "afternoon") {
+    if (roll < 0.35) {
+      return "dine_in";
+    }
+
+    if (roll < 0.8) {
+      return "pickup";
+    }
+
+    return "delivery";
+  }
+
+  if (daypart === "dinner") {
+    if (roll < 0.5) {
+      return "dine_in";
+    }
+
+    if (roll < 0.75) {
+      return "pickup";
+    }
+
+    return "delivery";
+  }
+
+  if (roll < 0.25) {
+    return "dine_in";
+  }
+
+  if (roll < 0.55) {
+    return "pickup";
+  }
+
+  return "delivery";
+}
+
+function statusForTodayOrder(createdAt: Date): OrderStatus {
+  const ageMs = Date.now() - createdAt.getTime();
+
+  if (ageMs < 0) {
+    return Math.random() < 0.7 ? "pending" : "preparing";
+  }
+
+  if (ageMs < 20 * 60 * 1000) {
+    return Math.random() < 0.7 ? "pending" : "preparing";
+  }
+
+  if (ageMs < 45 * 60 * 1000) {
+    return Math.random() < 0.65 ? "preparing" : "ready";
+  }
+
+  if (ageMs < 2 * 60 * 60 * 1000) {
+    if (Math.random() < 0.08) {
+      return "cancelled";
+    }
+
+    return Math.random() < 0.45 ? "ready" : "completed";
+  }
+
+  if (Math.random() < 0.04) {
+    return "cancelled";
+  }
+
+  return "completed";
 }
 
 const menuItemDetails: Record<
@@ -298,9 +560,18 @@ async function seed() {
   let createdOrderCount = 0;
   let createdItemCount = 0;
 
-  async function createOrderForCustomer(customerId: string) {
+  async function createOrderForCustomer({
+    customerId,
+    createdAt,
+    status,
+    orderType,
+  }: {
+    customerId: string;
+    createdAt: Date;
+    status: OrderStatus;
+    orderType: OrderType;
+  }) {
     const selectedItems = pickN(existingMenuItems, randomInt(2, 5));
-    const createdAt = randomRecentDate();
     const lineItems = selectedItems.map((menuItem) => {
       const quantity = randomInt(1, 3);
       const priceAtTime = Number(menuItem.price);
@@ -321,9 +592,8 @@ async function seed() {
     );
     const tax = subtotal * TAX_RATE;
     const total = subtotal + tax;
+    const completedAt = status === "completed" ? completedAtFor(createdAt) : null;
 
-    const status = randomStatus();
-    const orderType = pickOne<OrderType>(["dine_in", "pickup", "delivery"]);
     const [order] = await db
       .insert(orders)
       .values(
@@ -336,8 +606,8 @@ async function seed() {
           total: money(total),
           notes: maybe(pickOne(orderNotes), 0.4),
           createdAt,
-          completedAt: status === "completed" ? createdAt : null,
-          updatedAt: createdAt,
+          completedAt,
+          updatedAt: completedAt ?? createdAt,
         }),
       )
       .returning();
@@ -360,17 +630,79 @@ async function seed() {
   }
 
   for (const customer of insertedCustomers) {
-    await createOrderForCustomer(customer.id);
+    await createOrderForCustomer({
+      customerId: customer.id,
+      createdAt: randomHistoricalDate(),
+      status: randomStatus(),
+      orderType: pickOne<OrderType>(["dine_in", "pickup", "delivery"]),
+    });
   }
 
-  const extraOrderCount = Math.max(0, ORDER_COUNT - insertedCustomers.length);
+  const extraHistoricalCount = Math.max(
+    0,
+    HISTORICAL_ORDER_COUNT - insertedCustomers.length,
+  );
 
-  for (let index = 0; index < extraOrderCount; index += 1) {
-    await createOrderForCustomer(pickOne(insertedCustomers).id);
+  for (let index = 0; index < extraHistoricalCount; index += 1) {
+    await createOrderForCustomer({
+      customerId: pickOne(insertedCustomers).id,
+      createdAt: randomHistoricalDate(),
+      status: randomStatus(),
+      orderType: pickOne<OrderType>(["dine_in", "pickup", "delivery"]),
+    });
+  }
+
+  const todayWindows: Array<{
+    daypart: Daypart;
+    count: number;
+    hours: Record<number, number>;
+  }> = [
+    {
+      daypart: "breakfast",
+      count: randomInt(15, 20),
+      hours: { 7: 3, 8: 5, 9: 2 },
+    },
+    {
+      daypart: "lunch",
+      count: randomInt(25, 30),
+      hours: { 11: 2, 12: 5, 13: 3 },
+    },
+    {
+      daypart: "afternoon",
+      count: randomInt(5, 8),
+      hours: { 14: 4, 15: 3, 16: 2 },
+    },
+    {
+      daypart: "dinner",
+      count: randomInt(25, 30),
+      hours: { 18: 2, 19: 5, 20: 2 },
+    },
+    {
+      daypart: "late_night",
+      count: randomInt(5, 10),
+      hours: { 21: 6, 22: 4 },
+    },
+  ];
+
+  let todayOrderCount = 0;
+
+  for (const window of todayWindows) {
+    for (let index = 0; index < window.count; index += 1) {
+      const createdAt = todayDateAt(pickWeightedHour(window.hours));
+
+      await createOrderForCustomer({
+        customerId: pickOne(insertedCustomers).id,
+        createdAt,
+        status: statusForTodayOrder(createdAt),
+        orderType: randomOrderTypeForDaypart(window.daypart),
+      });
+    }
+
+    todayOrderCount += window.count;
   }
 
   console.log(
-    `Created ${createdOrderCount} orders with ${createdItemCount} items`,
+    `Created ${createdOrderCount} orders with ${createdItemCount} items (${todayOrderCount} today)`,
   );
 
   for (const customer of insertedCustomers) {

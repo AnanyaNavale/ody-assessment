@@ -305,6 +305,28 @@ const PopularItemSchema = z
   })
   .openapi("PopularItem");
 
+const HourlyOrdersSchema = z
+  .object({
+    hour: z.number().int().min(0).max(23),
+    count: z.number().int(),
+  })
+  .openapi("HourlyOrders");
+
+const OrderTypeShareSchema = z
+  .object({
+    count: z.number().int(),
+    percentage: z.number(),
+  })
+  .openapi("OrderTypeShare");
+
+const OrderTypeDistributionSchema = z
+  .object({
+    dineIn: OrderTypeShareSchema,
+    pickup: OrderTypeShareSchema,
+    delivery: OrderTypeShareSchema,
+  })
+  .openapi("OrderTypeDistribution");
+
 const DashboardStatsSchema = z
   .object({
     totalRevenue: z.string(),
@@ -313,6 +335,8 @@ const DashboardStatsSchema = z
     completedToday: z.number().int(),
     averageOrderValue: z.string(),
     popularItems: z.array(PopularItemSchema),
+    hourlyOrders: z.array(HourlyOrdersSchema),
+    orderTypeDistribution: OrderTypeDistributionSchema,
   })
   .openapi("DashboardStats");
 
@@ -1182,20 +1206,24 @@ function dateFilterCondition(
     return undefined;
   }
 
+  const restaurantToday = sql`(CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles')::date`;
+  const localCompletedAt = sql`((COALESCE(${orders.completedAt}, ${orders.createdAt}) AT TIME ZONE 'UTC') AT TIME ZONE 'America/Los_Angeles')`;
+  const localCreatedAt = sql`((${orders.createdAt} AT TIME ZONE 'UTC') AT TIME ZONE 'America/Los_Angeles')`;
+
   if (status === "completed") {
     if (dateFilter === "today") {
-      return sql`COALESCE(${orders.completedAt}, ${orders.createdAt})::date = CURRENT_DATE`;
+      return sql`${localCompletedAt}::date = ${restaurantToday}`;
     }
 
     if (dateFilter === "last_7_days") {
-      return sql`COALESCE(${orders.completedAt}, ${orders.createdAt}) >= NOW() - INTERVAL '7 days'`;
+      return sql`${localCompletedAt} >= NOW() - INTERVAL '7 days'`;
     }
 
-    return sql`COALESCE(${orders.completedAt}, ${orders.createdAt}) >= NOW() - INTERVAL '30 days'`;
+    return sql`${localCompletedAt} >= NOW() - INTERVAL '30 days'`;
   }
 
   if (dateFilter === "today") {
-    return sql`${orders.createdAt}::date = CURRENT_DATE`;
+    return sql`${localCreatedAt}::date = ${restaurantToday}`;
   }
 
   if (dateFilter === "last_7_days") {
@@ -1480,10 +1508,12 @@ app.openapi(getCustomerRoute, async (c) => {
 
 app.openapi(dashboardStatsRoute, async (c) => {
   const db = c.get("db");
-  const placedToday = sql`${orders.createdAt}::date = CURRENT_DATE`;
+  const restaurantLocalCreated = sql`((${orders.createdAt} AT TIME ZONE 'UTC') AT TIME ZONE 'America/Los_Angeles')`;
+  const restaurantToday = sql`(CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles')::date`;
+  const placedToday = sql`${restaurantLocalCreated}::date = ${restaurantToday}`;
   const completedTodayCondition = and(
     eq(orders.status, "completed"),
-    sql`COALESCE(${orders.completedAt}, ${orders.createdAt})::date = CURRENT_DATE`,
+    sql`((COALESCE(${orders.completedAt}, ${orders.createdAt}) AT TIME ZONE 'UTC') AT TIME ZONE 'America/Los_Angeles')::date = ${restaurantToday}`,
   );
 
   const [revenueRow] = await db
@@ -1528,6 +1558,53 @@ app.openapi(dashboardStatsRoute, async (c) => {
     .orderBy(desc(count()))
     .limit(5);
 
+  const hourExpr = sql<number>`extract(hour from ((${orders.createdAt} AT TIME ZONE 'UTC') AT TIME ZONE 'America/Los_Angeles'))::int`;
+  const hourlyRows = await db
+    .select({
+      hour: hourExpr,
+      count: count(),
+    })
+    .from(orders)
+    .where(placedToday)
+    .groupBy(hourExpr);
+
+  const countByHour = new Map<number, number>();
+
+  for (const row of hourlyRows) {
+    countByHour.set(Number(row.hour), toCount(row.count));
+  }
+
+  const hourlyOrders = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    count: countByHour.get(hour) ?? 0,
+  }));
+
+  const typeRows = await db
+    .select({
+      orderType: orders.orderType,
+      count: count(),
+    })
+    .from(orders)
+    .where(placedToday)
+    .groupBy(orders.orderType);
+
+  const typeCounts = { dine_in: 0, pickup: 0, delivery: 0 };
+
+  for (const row of typeRows) {
+    typeCounts[row.orderType] = toCount(row.count);
+  }
+
+  const typeTotal =
+    typeCounts.dine_in + typeCounts.pickup + typeCounts.delivery;
+
+  function typeShare(countValue: number) {
+    return {
+      count: countValue,
+      percentage:
+        typeTotal === 0 ? 0 : Math.round((countValue / typeTotal) * 1000) / 10,
+    };
+  }
+
   return c.json(
     {
       totalRevenue,
@@ -1540,6 +1617,12 @@ app.openapi(dashboardStatsRoute, async (c) => {
         menuItemName: row.menuItemName,
         orderCount: toCount(row.orderCount),
       })),
+      hourlyOrders,
+      orderTypeDistribution: {
+        dineIn: typeShare(typeCounts.dine_in),
+        pickup: typeShare(typeCounts.pickup),
+        delivery: typeShare(typeCounts.delivery),
+      },
     },
     200,
   );

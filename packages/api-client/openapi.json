@@ -602,6 +602,57 @@
           "orderCount"
         ]
       },
+      "HourlyOrders": {
+        "type": "object",
+        "properties": {
+          "hour": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 23
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hour",
+          "count"
+        ]
+      },
+      "OrderTypeShare": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "percentage": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "count",
+          "percentage"
+        ]
+      },
+      "OrderTypeDistribution": {
+        "type": "object",
+        "properties": {
+          "dineIn": {
+            "$ref": "#/components/schemas/OrderTypeShare"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/OrderTypeShare"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/OrderTypeShare"
+          }
+        },
+        "required": [
+          "dineIn",
+          "pickup",
+          "delivery"
+        ]
+      },
       "DashboardStats": {
         "type": "object",
         "properties": {
@@ -625,6 +676,15 @@
             "items": {
               "$ref": "#/components/schemas/PopularItem"
             }
+          },
+          "hourlyOrders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HourlyOrders"
+            }
+          },
+          "orderTypeDistribution": {
+            "$ref": "#/components/schemas/OrderTypeDistribution"
           }
         },
         "required": [
@@ -633,7 +693,9 @@
           "pendingOrders",
           "completedToday",
           "averageOrderValue",
-          "popularItems"
+          "popularItems",
+          "hourlyOrders",
+          "orderTypeDistribution"
         ]
       },
       "RestaurantSettings": {
