@@ -204,7 +204,14 @@ export default function HomeScreen() {
 
       {stats ? (
         <>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: 16,
+              alignItems: "stretch",
+            }}
+          >
             <KpiCard
               label="Today's Orders"
               value={String(stats.totalOrders)}
@@ -235,8 +242,9 @@ export default function HomeScreen() {
             <KpiCard
               label="Pending Orders"
               value={String(stats.pendingOrders)}
-              trend={absoluteTrend(stats.pendingOrdersChange)}
-              highlighted
+              trend={percentTrend(
+                percentFromCounts(stats.pendingOrders, stats.pendingOrdersChange),
+              )}
               iconBackground={palette.goldSoft}
               icon={
                 <Ionicons name="time-outline" size={18} color={palette.gold} />
@@ -291,9 +299,12 @@ export default function HomeScreen() {
   );
 }
 
-function percentTrend(value: number | null): { text: string; up: boolean } | null {
+function percentTrend(value: number | null): { text: string; up: boolean } {
   if (value === null) {
-    return null;
+    return {
+      text: "New vs yesterday",
+      up: true,
+    };
   }
 
   return {
@@ -302,12 +313,14 @@ function percentTrend(value: number | null): { text: string; up: boolean } | nul
   };
 }
 
-function absoluteTrend(value: number): { text: string; up: boolean } {
-  const sign = value > 0 ? "+" : "";
-  return {
-    text: `${sign}${value} vs yesterday`,
-    up: value >= 0,
-  };
+function percentFromCounts(today: number, change: number): number | null {
+  const yesterday = today - change;
+
+  if (yesterday === 0) {
+    return today === 0 ? 0 : null;
+  }
+
+  return Math.round((change / yesterday) * 1000) / 10;
 }
 
 function Panel({
@@ -350,7 +363,6 @@ function KpiCard({
   trend,
   icon,
   iconBackground,
-  highlighted,
   onPress,
 }: {
   label: string;
@@ -358,29 +370,28 @@ function KpiCard({
   trend: { text: string; up: boolean } | null;
   icon: ReactNode;
   iconBackground: string;
-  highlighted?: boolean;
   onPress?: () => void;
 }) {
+  const cardStyle = {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 200,
+    backgroundColor: palette.card,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    gap: 10,
+    alignSelf: "stretch",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+  } as const;
+
   const content = (
-    <View
-      style={{
-        flexGrow: 1,
-        flexBasis: 200,
-        minWidth: 180,
-        backgroundColor: palette.card,
-        borderRadius: 14,
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 16,
-        gap: 10,
-        borderWidth: highlighted ? 1 : 0,
-        borderColor: highlighted ? "#C47A00" : "transparent",
-        shadowColor: "#000",
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        shadowOffset: { width: 0, height: 1 },
-      }}
-    >
+    <View style={cardStyle}>
       <View
         style={{
           flexDirection: "row",
@@ -389,6 +400,7 @@ function KpiCard({
         }}
       >
         <Text
+          numberOfLines={1}
           style={{
             ...sans,
             color: palette.muted,
@@ -437,6 +449,7 @@ function KpiCard({
               style={{
                 ...sans,
                 fontSize: 12,
+                lineHeight: 16,
                 fontFamily: fonts.sansSemiBold,
                 color: trend.up ? palette.green : palette.down,
               }}
@@ -451,7 +464,16 @@ function KpiCard({
 
   if (onPress) {
     return (
-      <Pressable onPress={onPress} style={{ flexGrow: 1, flexBasis: 200, minWidth: 180 }}>
+      <Pressable
+        onPress={onPress}
+        style={{
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: 0,
+          minWidth: 200,
+          alignSelf: "stretch",
+        }}
+      >
         {content}
       </Pressable>
     );
@@ -560,7 +582,7 @@ function OrderTypeCard({
       label: "Delivery",
       color: palette.gold,
       soft: palette.goldSoft,
-      icon: <Ionicons name="bicycle-outline" size={15} color={palette.gold} />,
+      icon: <Ionicons name="car-outline" size={15} color={palette.gold} />,
       share: distribution.delivery,
     },
   ] as const;
@@ -751,11 +773,11 @@ function StatusBreakdownCard({
   breakdown: DashboardStats["orderStatusBreakdown"];
 }) {
   const rows = [
-    { label: "Completed", count: breakdown.completed, color: palette.kitchen },
-    { label: "Pending", count: breakdown.pending, color: palette.pendingBar },
-    { label: "Preparing", count: breakdown.preparing, color: palette.red },
-    { label: "Ready", count: breakdown.ready, color: palette.teal },
-    { label: "Cancelled", count: breakdown.cancelled, color: palette.cancelled },
+    { label: "Completed", count: breakdown.completed, color: "#22C55E" },
+    { label: "Pending", count: breakdown.pending, color: "#D72400" },
+    { label: "Preparing", count: breakdown.preparing, color: "#F59E0B" },
+    { label: "Ready", count: breakdown.ready, color: "#7BBFC7" },
+    { label: "Cancelled", count: breakdown.cancelled, color: "#E5E7EB" },
   ];
   const max = Math.max(...rows.map((row) => row.count), 1);
 
@@ -864,8 +886,16 @@ function PopularItemsRow({ items }: { items: PopularItem[] }) {
 }
 
 function PopularItemCard({ item, rank }: { item: PopularItem; rank: number }) {
+  const router = useRouter();
+
   return (
-    <View
+    <Pressable
+      onPress={() =>
+        router.push({
+          pathname: "/(tabs)/menu",
+          params: { itemId: item.menuItemId, t: String(Date.now()) },
+        })
+      }
       style={{
         width: 190,
         backgroundColor: palette.card,
@@ -950,7 +980,7 @@ function PopularItemCard({ item, rank }: { item: PopularItem; rank: number }) {
           </Text>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

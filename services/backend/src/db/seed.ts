@@ -142,30 +142,43 @@ function pickN<T>(items: T[], count: number): T[] {
   return shuffled.slice(0, count);
 }
 
+function pickWeightedMenuItems<T extends { name: string }>(
+  items: T[],
+  count: number,
+): T[] {
+  const featured = new Set(Object.keys(menuItemDetails));
+  const remaining = [...items];
+  const selected: T[] = [];
+
+  while (selected.length < count && remaining.length > 0) {
+    const totalWeight = remaining.reduce(
+      (sum, item) => sum + (featured.has(item.name) ? 5 : 1),
+      0,
+    );
+    let roll = Math.random() * totalWeight;
+    let chosenIndex = remaining.length - 1;
+
+    for (const [index, item] of remaining.entries()) {
+      roll -= featured.has(item.name) ? 5 : 1;
+
+      if (roll <= 0) {
+        chosenIndex = index;
+        break;
+      }
+    }
+
+    selected.push(remaining.splice(chosenIndex, 1)[0]!);
+  }
+
+  return selected;
+}
+
 function maybe<T>(value: T, probability: number): T | null {
   return Math.random() < probability ? value : null;
 }
 
 function randomStatus(): OrderStatus {
-  const roll = Math.random();
-
-  if (roll < 0.6) {
-    return "completed";
-  }
-
-  if (roll < 0.8) {
-    return "preparing";
-  }
-
-  if (roll < 0.9) {
-    return "ready";
-  }
-
-  if (roll < 0.98) {
-    return "pending";
-  }
-
-  return "cancelled";
+  return Math.random() < 0.92 ? "completed" : "cancelled";
 }
 
 function restaurantNowParts(): {
@@ -589,13 +602,17 @@ async function seed() {
     createdAt,
     status,
     orderType,
+    featuredItems = false,
   }: {
     customerId: string;
     createdAt: Date;
     status: OrderStatus;
     orderType: OrderType;
+    featuredItems?: boolean;
   }) {
-    const selectedItems = pickN(existingMenuItems, randomInt(2, 5));
+    const selectedItems = featuredItems
+      ? pickWeightedMenuItems(existingMenuItems, randomInt(2, 4))
+      : pickN(existingMenuItems, randomInt(2, 5));
     const lineItems = selectedItems.map((menuItem) => {
       const quantity = randomInt(1, 3);
       const priceAtTime = Number(menuItem.price);
@@ -684,27 +701,27 @@ async function seed() {
     {
       daypart: "breakfast",
       count: randomInt(15, 20),
-      hours: { 7: 3, 8: 5, 9: 2 },
+      hours: { 7: 3, 8: 5, 9: 4 },
     },
     {
       daypart: "lunch",
       count: randomInt(25, 30),
-      hours: { 11: 2, 12: 5, 13: 3 },
+      hours: { 11: 3, 12: 8, 13: 6 },
     },
     {
       daypart: "afternoon",
       count: randomInt(5, 8),
-      hours: { 14: 4, 15: 3, 16: 2 },
+      hours: { 14: 3, 15: 2, 16: 2 },
     },
     {
       daypart: "dinner",
       count: randomInt(25, 30),
-      hours: { 18: 2, 19: 5, 20: 2 },
+      hours: { 18: 3, 19: 8, 20: 5 },
     },
     {
       daypart: "late_night",
       count: randomInt(5, 10),
-      hours: { 21: 6, 22: 4 },
+      hours: { 21: 5, 22: 3 },
     },
   ];
 
@@ -719,6 +736,7 @@ async function seed() {
         createdAt,
         status: statusForTodayOrder(createdAt),
         orderType: randomOrderTypeForDaypart(window.daypart),
+        featuredItems: true,
       });
     }
 
@@ -753,9 +771,9 @@ async function seed() {
 
   await db.insert(restaurantSettings).values(
     insertRestaurantSettingsSchema.parse({
-      restaurantName: "Ody Restaurant",
-      prepTimeMinutes: 15,
-      autoAcceptOrders: true,
+      restaurantName: "Ember & Co.",
+      prepTimeMinutes: 18,
+      autoAcceptOrders: false,
       serviceAvailable: true,
       taxRate: "0.0800",
       openingTime: "09:00",

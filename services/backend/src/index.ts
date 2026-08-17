@@ -139,22 +139,11 @@ const OrderStatusSchema = z.enum([
 
 type OrderStatusValue = z.infer<typeof OrderStatusSchema>;
 
-const ALLOWED_STATUS_TRANSITIONS: Record<
-  OrderStatusValue,
-  readonly OrderStatusValue[]
-> = {
-  pending: ["preparing", "cancelled"],
-  preparing: ["ready", "cancelled"],
-  ready: ["completed", "cancelled"],
-  completed: [],
-  cancelled: [],
-};
-
 function isAllowedStatusTransition(
   currentStatus: OrderStatusValue,
   nextStatus: OrderStatusValue,
 ): boolean {
-  return ALLOWED_STATUS_TRANSITIONS[currentStatus].includes(nextStatus);
+  return currentStatus !== nextStatus;
 }
 
 const UpdateOrderStatusSchema = z
@@ -185,6 +174,7 @@ const OrderCustomerSchema = z
     name: z.string(),
     email: z.string(),
     phone: z.string().nullable(),
+    totalOrders: z.number().int(),
   })
   .openapi("OrderCustomer");
 
@@ -192,6 +182,7 @@ const OrderLineMenuItemSchema = z
   .object({
     id: z.string().uuid(),
     name: z.string(),
+    imageUrl: z.string().nullable(),
   })
   .openapi("OrderLineMenuItem");
 
@@ -303,6 +294,18 @@ const CustomerSchema = z
     createdAt: z.string().datetime(),
   })
   .openapi("Customer");
+
+const CreateCustomerSchema = z
+  .object({
+    name: z.string().min(1),
+    email: z.string().email(),
+    phone: z.string().nullable().optional(),
+  })
+  .openapi("CreateCustomer");
+
+const UpdateCustomerSchema = CreateCustomerSchema.partial().openapi(
+  "UpdateCustomer",
+);
 
 const CustomerListItemSchema = CustomerSchema.extend({
   recentOrders: z.array(CustomerOrderSummarySchema),
@@ -435,6 +438,24 @@ function serializeCategory(row: Category) {
   };
 }
 
+function availabilityFromStock(stockQuantity: number | null): boolean {
+  return stockQuantity !== 0;
+}
+
+function invalidStockQuantity(
+  stockQuantity: number | null | undefined,
+): string | null {
+  if (stockQuantity === undefined || stockQuantity === null) {
+    return null;
+  }
+
+  if (!Number.isInteger(stockQuantity) || stockQuantity < 0) {
+    return "Stock quantity cannot be negative";
+  }
+
+  return null;
+}
+
 function serializeMenuItem(row: MenuItem) {
   return {
     id: row.id,
@@ -442,7 +463,7 @@ function serializeMenuItem(row: MenuItem) {
     name: row.name,
     description: row.description,
     price: row.price,
-    isAvailable: row.isAvailable,
+    isAvailable: availabilityFromStock(row.stockQuantity),
     stockQuantity: row.stockQuantity,
     imageUrl: row.imageUrl,
     createdAt: toIso(row.createdAt),
@@ -471,12 +492,14 @@ function serializeOrderCustomer(row: {
   name: string;
   email: string;
   phone: string | null;
+  totalOrders: number;
 }) {
   return {
     id: row.id,
     name: row.name,
     email: row.email,
     phone: row.phone,
+    totalOrders: row.totalOrders,
   };
 }
 
@@ -490,12 +513,47 @@ type OrderLineRow = {
   menuItem: {
     id: string;
     name: string;
+    imageUrl: string | null;
   };
 };
 
+function mapOrderItemRows(
+  itemRows: Array<{
+    orderItem: {
+      id: string;
+      menuItemId: string;
+      quantity: number;
+      priceAtTime: string;
+      subtotal: string;
+      notes: string | null;
+    };
+    menuItem: { id: string; name: string; imageUrl: string | null };
+  }>,
+): OrderLineRow[] {
+  return itemRows.map((itemRow) => ({
+    id: itemRow.orderItem.id,
+    menuItemId: itemRow.orderItem.menuItemId,
+    quantity: itemRow.orderItem.quantity,
+    priceAtTime: itemRow.orderItem.priceAtTime,
+    subtotal: itemRow.orderItem.subtotal,
+    notes: itemRow.orderItem.notes,
+    menuItem: {
+      id: itemRow.menuItem.id,
+      name: itemRow.menuItem.name,
+      imageUrl: itemRow.menuItem.imageUrl,
+    },
+  }));
+}
+
 function serializeOrderWithDetails(
   order: Order,
-  customer: { id: string; name: string; email: string; phone: string | null },
+  customer: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    totalOrders: number;
+  },
   items: OrderLineRow[],
 ) {
   return {
@@ -586,6 +644,42 @@ function jsonContent<T extends z.ZodType>(schema: T, description: string) {
 
 function isForeignKeyError(error: unknown): boolean {
   return error instanceof Error && /foreign key/i.test(error.message);
+}
+
+function isUniqueError(error: unknown): boolean {
+  const codes: string[] = [];
+  const messages: string[] = [];
+
+  const walk = (value: unknown, depth = 0) => {
+    if (value == null || depth > 5) {
+      return;
+    }
+
+    if (value instanceof Error) {
+      messages.push(value.message);
+      walk(value.cause, depth + 1);
+    }
+
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if (typeof record.code === "string" || typeof record.code === "number") {
+        codes.push(String(record.code));
+      }
+      if (typeof record.message === "string") {
+        messages.push(record.message);
+      }
+      if ("cause" in record) {
+        walk(record.cause, depth + 1);
+      }
+    }
+  };
+
+  walk(error);
+
+  return (
+    codes.includes("23505") ||
+    messages.some((message) => /unique|duplicate key/i.test(message))
+  );
 }
 
 const listCategoriesRoute = createRoute({
@@ -844,6 +938,27 @@ const listCustomersRoute = createRoute({
   },
 });
 
+const createCustomerRoute = createRoute({
+  method: "post",
+  path: "/api/customers",
+  tags: ["customers"],
+  summary: "Create a customer",
+  request: {
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: CreateCustomerSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    201: jsonContent(CustomerSchema, "Customer created"),
+    400: jsonContent(ErrorSchema, "Invalid request"),
+  },
+});
+
 const getCustomerRoute = createRoute({
   method: "get",
   path: "/api/customers/{id}",
@@ -854,6 +969,29 @@ const getCustomerRoute = createRoute({
   },
   responses: {
     200: jsonContent(CustomerDetailSchema, "Customer found"),
+    404: jsonContent(ErrorSchema, "Customer not found"),
+  },
+});
+
+const updateCustomerRoute = createRoute({
+  method: "patch",
+  path: "/api/customers/{id}",
+  tags: ["customers"],
+  summary: "Update a customer",
+  request: {
+    params: IdParamSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: UpdateCustomerSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: jsonContent(CustomerSchema, "Customer updated"),
+    400: jsonContent(ErrorSchema, "Invalid request"),
     404: jsonContent(ErrorSchema, "Customer not found"),
   },
 });
@@ -1033,9 +1171,23 @@ app.openapi(getMenuItemRoute, async (c) => {
 app.openapi(createMenuItemRoute, async (c) => {
   const db = c.get("db");
   const body = c.req.valid("json");
+  const stockError = invalidStockQuantity(body.stockQuantity);
+
+  if (stockError) {
+    return c.json({ error: "Bad Request", message: stockError }, 400);
+  }
+
+  const stockQuantity = body.stockQuantity ?? null;
 
   try {
-    const [row] = await db.insert(menuItems).values(body).returning();
+    const [row] = await db
+      .insert(menuItems)
+      .values({
+        ...body,
+        stockQuantity,
+        isAvailable: availabilityFromStock(stockQuantity),
+      })
+      .returning();
 
     if (!row) {
       return c.json(
@@ -1061,11 +1213,39 @@ app.openapi(updateMenuItemRoute, async (c) => {
   const db = c.get("db");
   const { id } = c.req.valid("param");
   const body = c.req.valid("json");
+  const stockError = invalidStockQuantity(body.stockQuantity);
+
+  if (stockError) {
+    return c.json({ error: "Bad Request", message: stockError }, 400);
+  }
 
   try {
+    const [existing] = await db
+      .select()
+      .from(menuItems)
+      .where(eq(menuItems.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return c.json(
+        { error: "Not Found", message: "Menu item not found" },
+        404,
+      );
+    }
+
+    const stockQuantity =
+      body.stockQuantity !== undefined
+        ? body.stockQuantity
+        : existing.stockQuantity;
+
     const [row] = await db
       .update(menuItems)
-      .set({ ...body, updatedAt: new Date() })
+      .set({
+        ...body,
+        stockQuantity,
+        isAvailable: availabilityFromStock(stockQuantity),
+        updatedAt: new Date(),
+      })
       .where(eq(menuItems.id, id))
       .returning();
 
@@ -1141,7 +1321,9 @@ app.openapi(createOrderRoute, async (c) => {
       );
     }
 
-    const unavailableItems = referencedItems.filter((item) => !item.isAvailable);
+    const unavailableItems = referencedItems.filter(
+      (item) => !availabilityFromStock(item.stockQuantity),
+    );
 
     if (unavailableItems.length > 0) {
       return c.json(
@@ -1388,18 +1570,7 @@ app.openapi(listOrdersRoute, async (c) => {
       serializeOrderWithDetails(
         row.order,
         row.customer,
-        itemRows.map((itemRow) => ({
-          id: itemRow.orderItem.id,
-          menuItemId: itemRow.orderItem.menuItemId,
-          quantity: itemRow.orderItem.quantity,
-          priceAtTime: itemRow.orderItem.priceAtTime,
-          subtotal: itemRow.orderItem.subtotal,
-          notes: itemRow.orderItem.notes,
-          menuItem: {
-            id: itemRow.menuItem.id,
-            name: itemRow.menuItem.name,
-          },
-        })),
+        mapOrderItemRows(itemRows),
       ),
     );
   }
@@ -1444,18 +1615,7 @@ app.openapi(getOrderRoute, async (c) => {
     serializeOrderWithDetails(
       row.order,
       row.customer,
-      itemRows.map((itemRow) => ({
-        id: itemRow.orderItem.id,
-        menuItemId: itemRow.orderItem.menuItemId,
-        quantity: itemRow.orderItem.quantity,
-        priceAtTime: itemRow.orderItem.priceAtTime,
-        subtotal: itemRow.orderItem.subtotal,
-        notes: itemRow.orderItem.notes,
-        menuItem: {
-          id: itemRow.menuItem.id,
-          name: itemRow.menuItem.name,
-        },
-      })),
+      mapOrderItemRows(itemRows),
     ),
     200,
   );
@@ -1478,16 +1638,6 @@ app.openapi(updateOrderStatusRoute, async (c) => {
 
   const currentStatus = existing.status;
 
-  if (currentStatus === "completed" || currentStatus === "cancelled") {
-    return c.json(
-      {
-        error: "Bad Request",
-        message: "Order is already in final state",
-      },
-      400,
-    );
-  }
-
   if (!isAllowedStatusTransition(currentStatus, nextStatus)) {
     return c.json(
       {
@@ -1503,7 +1653,7 @@ app.openapi(updateOrderStatusRoute, async (c) => {
     .set({
       status: nextStatus,
       updatedAt: new Date(),
-      ...(nextStatus === "completed" ? { completedAt: new Date() } : {}),
+      completedAt: nextStatus === "completed" ? new Date() : null,
     })
     .where(eq(orders.id, id))
     .returning();
@@ -1539,18 +1689,7 @@ app.openapi(updateOrderStatusRoute, async (c) => {
     serializeOrderWithDetails(
       row.order,
       row.customer,
-      itemRows.map((itemRow) => ({
-        id: itemRow.orderItem.id,
-        menuItemId: itemRow.orderItem.menuItemId,
-        quantity: itemRow.orderItem.quantity,
-        priceAtTime: itemRow.orderItem.priceAtTime,
-        subtotal: itemRow.orderItem.subtotal,
-        notes: itemRow.orderItem.notes,
-        menuItem: {
-          id: itemRow.menuItem.id,
-          name: itemRow.menuItem.name,
-        },
-      })),
+      mapOrderItemRows(itemRows),
     ),
     200,
   );
@@ -1574,8 +1713,7 @@ app.openapi(listCustomersRoute, async (c) => {
       .select()
       .from(orders)
       .where(eq(orders.customerId, customer.id))
-      .orderBy(desc(orders.createdAt))
-      .limit(5);
+      .orderBy(desc(orders.createdAt));
 
     result.push({
       ...serializeCustomer(customer),
@@ -1584,6 +1722,45 @@ app.openapi(listCustomersRoute, async (c) => {
   }
 
   return c.json(result, 200);
+});
+
+app.openapi(createCustomerRoute, async (c) => {
+  const db = c.get("db");
+  const body = c.req.valid("json");
+  const phone = body.phone?.trim() ? body.phone.trim() : null;
+
+  try {
+    const [row] = await db
+      .insert(customers)
+      .values({
+        name: body.name.trim(),
+        email: body.email.trim(),
+        phone,
+      })
+      .returning();
+
+    if (!row) {
+      return c.json(
+        { error: "Bad Request", message: "Failed to create customer" },
+        400,
+      );
+    }
+
+    return c.json(serializeCustomer(row), 201);
+  } catch (error) {
+    if (isUniqueError(error)) {
+      return c.json(
+        {
+          error: "Bad Request",
+          message:
+            "This email is already on file for another guest. Select that guest from the list, or use a different email.",
+        },
+        400,
+      );
+    }
+
+    throw error;
+  }
 });
 
 app.openapi(getCustomerRoute, async (c) => {
@@ -1613,6 +1790,62 @@ app.openapi(getCustomerRoute, async (c) => {
     },
     200,
   );
+});
+
+app.openapi(updateCustomerRoute, async (c) => {
+  const db = c.get("db");
+  const { id } = c.req.valid("param");
+  const body = c.req.valid("json");
+
+  const [existing] = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.id, id))
+    .limit(1);
+
+  if (!existing) {
+    return c.json({ error: "Not Found", message: "Customer not found" }, 404);
+  }
+
+  const nextName = body.name?.trim();
+  const nextEmail = body.email?.trim();
+  const nextPhone =
+    body.phone === undefined
+      ? existing.phone
+      : body.phone?.trim()
+        ? body.phone.trim()
+        : null;
+
+  try {
+    const [row] = await db
+      .update(customers)
+      .set({
+        name: nextName && nextName.length > 0 ? nextName : existing.name,
+        email: nextEmail && nextEmail.length > 0 ? nextEmail : existing.email,
+        phone: nextPhone,
+      })
+      .where(eq(customers.id, id))
+      .returning();
+
+    if (!row) {
+      return c.json({ error: "Not Found", message: "Customer not found" }, 404);
+    }
+
+    return c.json(serializeCustomer(row), 200);
+  } catch (error) {
+    if (isUniqueError(error)) {
+      return c.json(
+        {
+          error: "Bad Request",
+          message:
+            "This email is already on file for another guest. Select that guest from the list, or use a different email.",
+        },
+        400,
+      );
+    }
+
+    throw error;
+  }
 });
 
 app.openapi(dashboardStatsRoute, async (c) => {
@@ -1655,7 +1888,7 @@ app.openapi(dashboardStatsRoute, async (c) => {
   const [pendingOrdersRow] = await db
     .select({ pendingOrders: count() })
     .from(orders)
-    .where(eq(orders.status, "pending"));
+    .where(and(placedToday, eq(orders.status, "pending")));
 
   const [yesterdayPendingRow] = await db
     .select({ pendingOrders: count() })

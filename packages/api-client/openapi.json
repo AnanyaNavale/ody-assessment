@@ -355,13 +355,17 @@
           "phone": {
             "type": "string",
             "nullable": true
+          },
+          "totalOrders": {
+            "type": "integer"
           }
         },
         "required": [
           "id",
           "name",
           "email",
-          "phone"
+          "phone",
+          "totalOrders"
         ]
       },
       "OrderLineMenuItem": {
@@ -373,11 +377,16 @@
           },
           "name": {
             "type": "string"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
           "id",
-          "name"
+          "name",
+          "imageUrl"
         ]
       },
       "OrderLineItem": {
@@ -579,6 +588,27 @@
           }
         ]
       },
+      "CreateCustomer": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ]
+      },
       "CustomerDetail": {
         "allOf": [
           {
@@ -599,6 +629,23 @@
             ]
           }
         ]
+      },
+      "UpdateCustomer": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          }
+        }
       },
       "PopularItem": {
         "type": "object",
@@ -1645,6 +1692,44 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "customers"
+        ],
+        "summary": "Create a customer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Customer created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/customers/{id}": {
@@ -1672,6 +1757,66 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CustomerDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Customer not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "customers"
+        ],
+        "summary": "Update a customer",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }

@@ -1,15 +1,21 @@
 import {
+  getGetDashboardStatsQueryKey,
+  getGetOrdersQueryKey,
   useGetDashboardStats,
   useGetOrders,
   useGetSettings,
+  useUpdateOrderStatus,
   type GetOrdersDateFilter,
   type GetOrdersSortBy,
   type GetOrdersSortOrder,
   type GetOrdersStatus,
   type OrderWithDetails,
+  type UpdateOrderStatusStatus,
 } from "@ody/api-client";
 import { fonts } from "@ody/shared";
+import { CreateOrderModal } from "../../components/CreateOrderModal";
 import { Ionicons } from "@expo/vector-icons";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import {
@@ -94,15 +100,43 @@ const ORDER_TYPES = [
 
 type OrderTypeValue = (typeof ORDER_TYPES)[number]["value"];
 
+const STATUS_COLORS = {
+  pending: "#D72400",
+  preparing: "#F59E0B",
+  ready: "#7BBFC7",
+  completed: "#22C55E",
+  cancelled: "#E5E7EB",
+} as const;
+
 const STATUS_PILL: Record<
   string,
   { background: string; color: string; icon: ComponentProps<typeof Ionicons>["name"] }
 > = {
-  pending: { background: "#fef3c7", color: "#92400e", icon: "time-outline" },
-  preparing: { background: "#dbeafe", color: "#1e40af", icon: "flame-outline" },
-  ready: { background: "#d1fae5", color: "#065f46", icon: "checkmark-circle-outline" },
-  completed: { background: "#f3f4f6", color: "#374151", icon: "checkmark-outline" },
-  cancelled: { background: "#fee2e2", color: "#991b1b", icon: "close-outline" },
+  pending: {
+    background: "rgba(215, 36, 0, 0.12)",
+    color: STATUS_COLORS.pending,
+    icon: "time-outline",
+  },
+  preparing: {
+    background: "rgba(245, 158, 11, 0.15)",
+    color: STATUS_COLORS.preparing,
+    icon: "flame-outline",
+  },
+  ready: {
+    background: "rgba(123, 191, 199, 0.18)",
+    color: STATUS_COLORS.ready,
+    icon: "checkmark-circle-outline",
+  },
+  completed: {
+    background: "rgba(34, 197, 94, 0.15)",
+    color: STATUS_COLORS.completed,
+    icon: "checkmark-outline",
+  },
+  cancelled: {
+    background: STATUS_COLORS.cancelled,
+    color: "#6b7280",
+    icon: "close-outline",
+  },
 };
 
 function firstParam(value?: string | string[]): string | undefined {
@@ -145,7 +179,7 @@ function orderTypeIcon(
   }
 
   if (orderType === "delivery") {
-    return "bicycle-outline";
+    return "car-outline";
   }
 
   return "restaurant-outline";
@@ -286,6 +320,46 @@ function isOpenStatus(status: string): boolean {
   return OPEN_STATUSES.some((value) => value === status);
 }
 
+function nextStatusAction(status: string): {
+  label: string;
+  status: UpdateOrderStatusStatus;
+  icon: ComponentProps<typeof Ionicons>["name"];
+  color: string;
+  background: string;
+} | null {
+  if (status === "pending") {
+    return {
+      label: "Preparing",
+      status: "preparing",
+      icon: STATUS_PILL.preparing.icon,
+      color: STATUS_COLORS.preparing,
+      background: "rgba(245, 158, 11, 0.15)",
+    };
+  }
+
+  if (status === "preparing") {
+    return {
+      label: "Ready",
+      status: "ready",
+      icon: STATUS_PILL.ready.icon,
+      color: STATUS_COLORS.ready,
+      background: "rgba(123, 191, 199, 0.18)",
+    };
+  }
+
+  if (status === "ready") {
+    return {
+      label: "Completed",
+      status: "completed",
+      icon: STATUS_PILL.completed.icon,
+      color: STATUS_COLORS.completed,
+      background: "rgba(34, 197, 94, 0.15)",
+    };
+  }
+
+  return null;
+}
+
 function isOverdue(createdAt: string): boolean {
   return Date.now() - new Date(createdAt).getTime() > 24 * 60 * 60 * 1000;
 }
@@ -338,10 +412,29 @@ function typesQueryValue(types: OrderTypeValue[]): string | undefined {
 
 export default function OrdersScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const statsQuery = useGetDashboardStats();
   const settingsQuery = useGetSettings();
+  const updateStatus = useUpdateOrderStatus({
+    mutation: {
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: getGetOrdersQueryKey() }),
+          queryClient.invalidateQueries({
+            queryKey: getGetDashboardStatsQueryKey(),
+          }),
+        ]);
+      },
+      onError: (error) => {
+        const message =
+          error instanceof Error ? error.message : "Failed to update status";
+        alert(message);
+      },
+    },
+  });
   const kitchenOpen = settingsQuery.data?.serviceAvailable ?? true;
   const stats = statsQuery.data;
+  const [createOpen, setCreateOpen] = useState(false);
 
   const params = useLocalSearchParams<{
     tab?: string | string[];
@@ -467,6 +560,7 @@ export default function OrdersScreen() {
   const rangeEnd = Math.min(safePage * PAGE_SIZE, total);
 
   return (
+    <>
     <ScrollView
       style={{ flex: 1, backgroundColor: palette.page }}
       contentContainerStyle={{
@@ -487,20 +581,34 @@ export default function OrdersScreen() {
           <Text
             style={{
               ...sans,
-              fontSize: 11,
-              letterSpacing: 1.2,
               color: palette.muted,
-              fontFamily: fonts.sansSemiBold,
+              fontSize: 13,
+              fontFamily: fonts.sansMedium,
+              letterSpacing: 1.04,
             }}
           >
             {todayLabel()}
           </Text>
-          <Text style={{ ...serif, fontSize: 32, letterSpacing: -0.4, lineHeight: 40 }}>
+          <Text style={{ ...serif, fontSize: 32, letterSpacing: -0.4, lineHeight: 40, marginTop: 4 }}>
             Orders
           </Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View
+            style={{
+              backgroundColor: palette.card,
+              borderRadius: 12,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              shadowColor: "#000",
+              shadowOpacity: 0.06,
+              shadowRadius: 2,
+              shadowOffset: { width: 0, height: 1 },
+            }}
+          >
             <View
               style={{
                 width: 8,
@@ -540,83 +648,119 @@ export default function OrdersScreen() {
         <SummaryCard
           label="Pending"
           value={stats ? String(stats.pendingOrders) : "—"}
-          icon={<Ionicons name="time-outline" size={18} color={palette.gold} />}
-          iconBackground={palette.goldSoft}
+          icon={<Ionicons name="time-outline" size={18} color={STATUS_COLORS.pending} />}
+          iconBackground="rgba(215, 36, 0, 0.09)"
         />
         <SummaryCard
           label="Preparing"
           value={stats ? String(stats.orderStatusBreakdown.preparing) : "—"}
-          icon={<Ionicons name="flame-outline" size={18} color={palette.teal} />}
-          iconBackground={palette.tealSoft}
+          icon={<Ionicons name="flame-outline" size={18} color={STATUS_COLORS.preparing} />}
+          iconBackground="rgba(245, 158, 11, 0.09)"
         />
         <SummaryCard
           label="Ready"
           value={stats ? String(stats.orderStatusBreakdown.ready) : "—"}
           icon={
-            <Ionicons name="checkmark-circle-outline" size={18} color={palette.green} />
+            <Ionicons name="checkmark-circle-outline" size={18} color={STATUS_COLORS.ready} />
           }
-          iconBackground={palette.greenSoft}
+          iconBackground="rgba(123, 191, 199, 0.09)"
         />
         <SummaryCard
           label="Completed"
           value={stats ? String(stats.completedToday) : "—"}
-          icon={<Ionicons name="checkmark-outline" size={18} color={palette.dim} />}
-          iconBackground={palette.track}
+          icon={<Ionicons name="checkmark-outline" size={18} color={STATUS_COLORS.completed} />}
+          iconBackground="rgba(34, 197, 94, 0.09)"
         />
         <SummaryCard
           label="Cancelled"
           value={stats ? String(stats.orderStatusBreakdown.cancelled) : "—"}
-          icon={<Ionicons name="close-outline" size={18} color={palette.red} />}
-          iconBackground={palette.redSoft}
+          icon={<Ionicons name="close-outline" size={18} color="#6b7280" />}
+          iconBackground={STATUS_COLORS.cancelled}
         />
       </View>
 
       <View
         style={{
           flexDirection: "row",
+          flexWrap: "wrap",
           alignItems: "center",
-          maxWidth: 442,
-          width: "100%",
-          backgroundColor: palette.card,
-          borderWidth: 1,
-          borderColor: palette.controlBorder,
-          borderRadius: 99,
-          paddingLeft: 14,
-          paddingRight: 5,
-          paddingVertical: 4,
-          shadowColor: "#000",
-          shadowOpacity: 0.04,
-          shadowRadius: 2,
-          shadowOffset: { width: 0, height: 1 },
+          justifyContent: "space-between",
+          gap: 12,
         }}
       >
-        <TextInput
-          value={search}
-          onChangeText={(value) => updateParams({ search: value })}
-          placeholder="Search by customer or order #…"
-          placeholderTextColor="rgba(51, 51, 51, 0.5)"
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={{
-            flex: 1,
-            paddingVertical: 8,
-            paddingRight: 10,
-            ...sans,
-            fontSize: 13,
-          }}
-        />
         <View
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: 16,
-            backgroundColor: palette.red,
+            flexDirection: "row",
             alignItems: "center",
-            justifyContent: "center",
+            flexGrow: 1,
+            flexShrink: 1,
+            maxWidth: 442,
+            minWidth: 240,
+            backgroundColor: palette.card,
+            borderWidth: 1,
+            borderColor: palette.controlBorder,
+            borderRadius: 99,
+            paddingLeft: 14,
+            paddingRight: 5,
+            paddingVertical: 4,
+            shadowColor: "#000",
+            shadowOpacity: 0.04,
+            shadowRadius: 2,
+            shadowOffset: { width: 0, height: 1 },
           }}
         >
-          <Ionicons name="search" size={15} color="#ffffff" />
+          <TextInput
+            value={search}
+            onChangeText={(value) => updateParams({ search: value })}
+            placeholder="Search by customer or order #…"
+            placeholderTextColor="rgba(51, 51, 51, 0.5)"
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={{
+              flex: 1,
+              paddingVertical: 8,
+              paddingRight: 10,
+              ...sans,
+              fontSize: 13,
+            }}
+          />
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: palette.red,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="search" size={15} color="#ffffff" />
+          </View>
         </View>
+        <Pressable
+          onPress={() => setCreateOpen(true)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            backgroundColor: palette.red,
+            borderRadius: 99,
+            paddingVertical: 10,
+            paddingHorizontal: 16,
+          }}
+        >
+          <Ionicons name="add" size={18} color="#ffffff" />
+          <Text
+            style={{
+              ...sans,
+              color: "#ffffff",
+              fontFamily: fonts.sansSemiBold,
+              fontSize: 13,
+            }}
+          >
+            Create an Order
+          </Text>
+        </Pressable>
       </View>
 
       <View
@@ -699,7 +843,8 @@ export default function OrdersScreen() {
             { label: "Type", flex: 1.1 },
             { label: "Items", flex: 0.7 },
             { label: "Total", flex: 0.9 },
-            { label: "Status", flex: 1.4 },
+            { label: "Status", flex: 1.3 },
+            { label: "Actions", flex: 1.1 },
           ].map((column) => (
             <Text
               key={column.label}
@@ -752,7 +897,14 @@ export default function OrdersScreen() {
                     key={order.id}
                     order={order}
                     showOverdue={showOverdue}
+                    statusBusy={
+                      updateStatus.isPending &&
+                      updateStatus.variables?.id === order.id
+                    }
                     onPress={() => router.push(`/orders/${order.id}`)}
+                    onChangeStatus={(status) =>
+                      updateStatus.mutate({ id: order.id, data: { status } })
+                    }
                   />
                 ))}
               </View>
@@ -762,7 +914,14 @@ export default function OrdersScreen() {
                 key={order.id}
                 order={order}
                 showOverdue={showOverdue}
+                statusBusy={
+                  updateStatus.isPending &&
+                  updateStatus.variables?.id === order.id
+                }
                 onPress={() => router.push(`/orders/${order.id}`)}
+                onChangeStatus={(status) =>
+                  updateStatus.mutate({ id: order.id, data: { status } })
+                }
               />
             ))}
 
@@ -836,6 +995,8 @@ export default function OrdersScreen() {
         </View>
       </View>
     </ScrollView>
+    <CreateOrderModal visible={createOpen} onClose={() => setCreateOpen(false)} />
+    </>
   );
 }
 
@@ -918,27 +1079,31 @@ const dropdownTrigger = {
   flexDirection: "row" as const,
   alignItems: "center" as const,
   gap: 6,
-  shadowColor: "#000",
-  shadowOpacity: 0.04,
-  shadowRadius: 1.5,
+  shadowColor: "#1a0800",
+  shadowOpacity: 0.06,
+  shadowRadius: 2,
   shadowOffset: { width: 0, height: 1 },
+  elevation: 2,
+  boxShadow: "0 1px 2px rgba(26, 8, 0, 0.06)",
 };
 
 const dropdownPanel = {
   position: "absolute" as const,
   top: 44,
   right: 0,
-  minWidth: 168,
+  minWidth: 176,
   backgroundColor: palette.card,
   borderRadius: 16,
   borderWidth: 1,
   borderColor: palette.controlBorder,
-  shadowColor: "#000",
-  shadowOpacity: 0.16,
-  shadowRadius: 10,
+  overflow: "hidden" as const,
+  shadowColor: "#1a0800",
+  shadowOpacity: 0.14,
+  shadowRadius: 12,
   shadowOffset: { width: 0, height: 6 },
+  elevation: 12,
   zIndex: 9999,
-  elevation: 40,
+  boxShadow: "0 8px 24px rgba(26, 8, 0, 0.14)",
 };
 
 function StatusTabs({
@@ -1197,14 +1362,57 @@ function TypeFilter({
   );
 }
 
+function OrderActionButton({
+  label,
+  icon,
+  color,
+  background,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  icon: ComponentProps<typeof Ionicons>["name"];
+  color: string;
+  background: string;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={disabled}
+      onPress={(event) => {
+        event.stopPropagation();
+        onPress();
+      }}
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: background,
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: disabled ? 0.45 : 1,
+      }}
+    >
+      <Ionicons name={icon} size={16} color={color} />
+    </Pressable>
+  );
+}
+
 function OrderRow({
   order,
   showOverdue,
+  statusBusy,
   onPress,
+  onChangeStatus,
 }: {
   order: OrderWithDetails;
   showOverdue: boolean;
+  statusBusy?: boolean;
   onPress: () => void;
+  onChangeStatus: (status: UpdateOrderStatusStatus) => void;
 }) {
   const { date, time } = formatRowDate(order.createdAt);
   const overdueText =
@@ -1212,6 +1420,7 @@ function OrderRow({
       ? overdueLabel(order.createdAt)
       : null;
   const pill = STATUS_PILL[order.status] ?? STATUS_PILL.pending;
+  const nextAction = nextStatusAction(order.status);
 
   return (
     <Pressable
@@ -1260,7 +1469,7 @@ function OrderRow({
       >
         {formatMoney(order.total)}
       </Text>
-      <View style={{ flex: 1.4, flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+      <View style={{ flex: 1.3, flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
         <View
           style={{
             flexDirection: "row",
@@ -1304,6 +1513,35 @@ function OrderRow({
               {overdueText}
             </Text>
           </View>
+        ) : null}
+      </View>
+      <View
+        style={{
+          flex: 1.1,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        {nextAction ? (
+          <>
+            <OrderActionButton
+              label={nextAction.label}
+              icon={nextAction.icon}
+              color={nextAction.color}
+              background={nextAction.background}
+              disabled={statusBusy}
+              onPress={() => onChangeStatus(nextAction.status)}
+            />
+            <OrderActionButton
+              label="Cancel"
+              icon={STATUS_PILL.cancelled.icon}
+              color={STATUS_PILL.cancelled.color}
+              background={STATUS_PILL.cancelled.background}
+              disabled={statusBusy}
+              onPress={() => onChangeStatus("cancelled")}
+            />
+          </>
         ) : null}
       </View>
     </Pressable>
