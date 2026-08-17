@@ -6,9 +6,11 @@ Restaurant operations dashboard and API, organized as a pnpm + Turborepo monorep
 
 ### Prerequisites
 
-- **Node.js** `>=24.0.0` (see `.nvmrc`)
+- **Node.js** `>=24.0.0` (verify with `node --version`)
 - **pnpm** `11.21.0` (see `packageManager` in the root `package.json`)
 - **PostgreSQL** via a [Neon](https://neon.tech) project (or any Postgres URL the HTTP driver can reach)
+
+**If you use nvm:**
 
 ```bash
 nvm use
