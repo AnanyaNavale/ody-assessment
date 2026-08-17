@@ -437,61 +437,81 @@ function statusForTodayOrder(createdAt: Date): OrderStatus {
 
 const menuItemDetails: Record<
   string,
-  { ingredients: string; tags: DietaryTag[] }
+  { ingredients: string; tags: DietaryTag[]; imageUrl: string }
 > = {
+  "Herb Roasted Chicken": {
+    ingredients:
+      "chicken, rosemary, lemon, garlic, olive oil, seasonal vegetables, pan jus",
+    tags: ["gluten_free", "nut_free", "dairy_free"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1504670813815-f43e2383e08d?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
   "Truffle Parmesan Fries": {
     ingredients:
       "potatoes, truffle oil, parmesan, chives, salt, black pepper",
     tags: ["vegetarian", "nut_free"],
-  },
-  "Caesar Salad": {
-    ingredients:
-      "romaine lettuce, parmesan, garlic croutons, olive oil, lemon, anchovy",
-    tags: ["nut_free", "gluten_free"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1682117650826-881357860ec9?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   "Classic Cheeseburger": {
     ingredients:
       "beef patty, cheddar, lettuce, tomato, pickle, onion, brioche bun, special sauce",
     tags: ["nut_free", "spicy"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1703219338500-90f646e60c1b?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
-  "Herb Roasted Chicken": {
+  "Caesar Salad": {
     ingredients:
-      "chicken, rosemary, lemon, garlic, olive oil, seasonal vegetables, pan jus",
-    tags: ["gluten_free", "nut_free", "dairy_free"],
-  },
-  "Grilled Salmon": {
-    ingredients:
-      "atlantic salmon, citrus, butter, asparagus, herbed rice, salt, pepper",
-    tags: ["gluten_free", "nut_free", "spicy"],
-  },
-  "Chocolate Lava Cake": {
-    ingredients:
-      "dark chocolate, butter, eggs, sugar, flour, vanilla ice cream, raspberry",
-    tags: ["vegetarian", "nut_free"],
+      "romaine lettuce, parmesan, garlic croutons, olive oil, lemon, anchovy",
+    tags: ["nut_free", "gluten_free"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1550304943-4f24f54ddde9?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   "New York Cheesecake": {
     ingredients:
       "cream cheese, graham cracker crust, sugar, eggs, vanilla, blueberry compote",
     tags: ["vegetarian", "nut_free"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1681725271035-7270a7464f5b?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  "Chocolate Lava Cake": {
+    ingredients:
+      "dark chocolate, butter, eggs, sugar, flour, vanilla ice cream, raspberry",
+    tags: ["vegetarian", "nut_free"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1673551490812-eaee2e9bf0ef?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  "Grilled Salmon": {
+    ingredients:
+      "atlantic salmon, citrus, butter, asparagus, herbed rice, salt, pepper",
+    tags: ["gluten_free", "nut_free", "spicy"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   "Sparkling Citrus Spritz": {
     ingredients: "sparkling water, orange, grapefruit, mint, simple syrup",
     tags: ["vegan", "gluten_free", "dairy_free", "nut_free"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1654074518426-7ef871efccce?q=80&w=1770&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   "Cold Brew Affogato": {
     ingredients: "vanilla gelato, cold brew coffee, cocoa nibs",
     tags: ["vegetarian", "gluten_free", "nut_free"],
+    imageUrl:
+      "https://images.unsplash.com/photo-1642647390911-77934bc6bc33?q=80&w=1772&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
 };
 
 function detailsForMenuItem(name: string): {
   ingredients: string;
   tags: DietaryTag[];
+  imageUrl: string | null;
 } {
   return (
     menuItemDetails[name] ?? {
       ingredients: "house ingredients",
       tags: ["nut_free"],
+      imageUrl: null,
     }
   );
 }
@@ -505,7 +525,11 @@ async function seedMenuItemDetails() {
 
     await db
       .update(menuItems)
-      .set({ ingredients: details.ingredients, updatedAt: new Date() })
+      .set({
+        ingredients: details.ingredients,
+        imageUrl: details.imageUrl,
+        updatedAt: new Date(),
+      })
       .where(eq(menuItems.id, item.id));
 
     if (details.tags.length === 0) {

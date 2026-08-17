@@ -1,5 +1,5 @@
 OVERALL
-[] Make tab bar thinner
+[x] Make tab bar thinner
 [] Add Reservations tab (and add Reservations back to Home 'Key Metrics' card)
 
 HOME
@@ -7,9 +7,10 @@ HOME
 MENU
 [] Add drag and drop reorder for categories
 [] Add search bar for items
+[] Add item-specific modals for each item -- link Home popular items with respective modals 
 
 ORDERS
-[] Add counts in each tab
+[x] Add counts in each tab
 
 CRM
 [] Detail: Make sort dropdown overlap list, not push list down

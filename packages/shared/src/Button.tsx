@@ -1,5 +1,5 @@
 import { Pressable, Text, type PressableProps } from "react-native";
-import { colors, spacing, typography } from "./tokens";
+import { colors, fonts, spacing, typography } from "./tokens";
 
 type ButtonVariant = "primary" | "danger" | "secondary";
 
@@ -46,7 +46,13 @@ export function Button({
         style,
       ]}
     >
-      <Text style={{ ...typography.body, color: palette.color, fontWeight: "600" }}>
+      <Text
+        style={{
+          ...typography.body,
+          color: palette.color,
+          fontFamily: fonts.sansSemiBold,
+        }}
+      >
         {label}
       </Text>
     </Pressable>

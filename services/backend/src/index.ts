@@ -1,6 +1,6 @@
 import { swaggerUI } from "@hono/swagger-ui";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq, ne, asc, inArray, desc, and, or, ilike, sql, sum, count } from "drizzle-orm";
+import { eq, ne, asc, inArray, desc, and, or, ilike, sql, sum, count, countDistinct } from "drizzle-orm";
 import { cors } from "hono/cors";
 import {
   createDb,
@@ -212,6 +212,13 @@ const OrderWithDetailsSchema = OrderSchema.extend({
   orderItems: z.array(OrderLineItemSchema),
 }).openapi("OrderWithDetails");
 
+const OrderListResponseSchema = z
+  .object({
+    items: z.array(OrderWithDetailsSchema),
+    total: z.number().int(),
+  })
+  .openapi("OrderListResponse");
+
 const ListOrdersQuerySchema = z.object({
   status: z
     .enum(["pending", "preparing", "ready", "completed", "cancelled"])
@@ -249,6 +256,14 @@ const ListOrdersQuerySchema = z.object({
     .optional()
     .openapi({
       param: { name: "dateFilter", in: "query" },
+    }),
+  orderTypes: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "orderTypes", in: "query" },
+      description:
+        "Comma-separated order types (dine_in, pickup, delivery). Use none for no matches.",
     }),
   limit: z.coerce.number().int().min(1).max(100).default(50).openapi({
     param: { name: "limit", in: "query" },
@@ -301,7 +316,10 @@ const PopularItemSchema = z
   .object({
     menuItemId: z.string().uuid(),
     menuItemName: z.string(),
+    categoryName: z.string(),
+    imageUrl: z.string().nullable(),
     orderCount: z.number().int(),
+    revenue: z.string(),
   })
   .openapi("PopularItem");
 
@@ -327,16 +345,32 @@ const OrderTypeDistributionSchema = z
   })
   .openapi("OrderTypeDistribution");
 
+const OrderStatusBreakdownSchema = z
+  .object({
+    completed: z.number().int(),
+    pending: z.number().int(),
+    preparing: z.number().int(),
+    ready: z.number().int(),
+    cancelled: z.number().int(),
+  })
+  .openapi("OrderStatusBreakdown");
+
 const DashboardStatsSchema = z
   .object({
     totalRevenue: z.string(),
     totalOrders: z.number().int(),
     pendingOrders: z.number().int(),
     completedToday: z.number().int(),
+    customersServed: z.number().int(),
     averageOrderValue: z.string(),
     popularItems: z.array(PopularItemSchema),
     hourlyOrders: z.array(HourlyOrdersSchema),
     orderTypeDistribution: OrderTypeDistributionSchema,
+    orderStatusBreakdown: OrderStatusBreakdownSchema,
+    totalOrdersChangePercent: z.number().nullable(),
+    revenueChangePercent: z.number().nullable(),
+    customersServedChangePercent: z.number().nullable(),
+    pendingOrdersChange: z.number().int(),
   })
   .openapi("DashboardStats");
 
@@ -754,7 +788,7 @@ const listOrdersRoute = createRoute({
     query: ListOrdersQuerySchema,
   },
   responses: {
-    200: jsonContent(z.array(OrderWithDetailsSchema), "Orders"),
+    200: jsonContent(OrderListResponseSchema, "Orders"),
     400: jsonContent(ErrorSchema, "Invalid query"),
   },
 });
@@ -1222,6 +1256,20 @@ function dateFilterCondition(
     return sql`${localCompletedAt} >= NOW() - INTERVAL '30 days'`;
   }
 
+  if (status === "cancelled") {
+    const localUpdatedAt = sql`((${orders.updatedAt} AT TIME ZONE 'UTC') AT TIME ZONE 'America/Los_Angeles')`;
+
+    if (dateFilter === "today") {
+      return sql`${localUpdatedAt}::date = ${restaurantToday}`;
+    }
+
+    if (dateFilter === "last_7_days") {
+      return sql`${orders.updatedAt} >= NOW() - INTERVAL '7 days'`;
+    }
+
+    return sql`${orders.updatedAt} >= NOW() - INTERVAL '30 days'`;
+  }
+
   if (dateFilter === "today") {
     return sql`${localCreatedAt}::date = ${restaurantToday}`;
   }
@@ -1233,10 +1281,57 @@ function dateFilterCondition(
   return sql`${orders.createdAt} >= NOW() - INTERVAL '30 days'`;
 }
 
+function parseOrderTypes(
+  value: string | undefined,
+): Array<"dine_in" | "pickup" | "delivery"> | "none" | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value.trim() === "" || value.trim() === "none") {
+    return "none";
+  }
+
+  const allowed = new Set(["dine_in", "pickup", "delivery"]);
+  const types = [
+    ...new Set(
+      value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => allowed.has(entry)),
+    ),
+  ] as Array<"dine_in" | "pickup" | "delivery">;
+
+  if (types.length === 0) {
+    return "none";
+  }
+
+  if (types.length === 3) {
+    return undefined;
+  }
+
+  return types;
+}
+
 app.openapi(listOrdersRoute, async (c) => {
   const db = c.get("db");
-  const { status, customerId, search, sortBy, sortOrder, dateFilter, limit, offset } =
-    c.req.valid("query");
+  const {
+    status,
+    customerId,
+    search,
+    sortBy,
+    sortOrder,
+    dateFilter,
+    orderTypes,
+    limit,
+    offset,
+  } = c.req.valid("query");
+
+  const parsedTypes = parseOrderTypes(orderTypes);
+
+  if (parsedTypes === "none") {
+    return c.json({ items: [], total: 0 }, 200);
+  }
 
   const trimmedSearch = search?.trim();
   const searchPattern = trimmedSearch ? `%${trimmedSearch}%` : undefined;
@@ -1244,6 +1339,7 @@ app.openapi(listOrdersRoute, async (c) => {
   const filters = [
     status ? eq(orders.status, status) : undefined,
     customerId ? eq(orders.customerId, customerId) : undefined,
+    parsedTypes ? inArray(orders.orderType, parsedTypes) : undefined,
     searchPattern
       ? or(
           ilike(customers.name, searchPattern),
@@ -1253,9 +1349,16 @@ app.openapi(listOrdersRoute, async (c) => {
     dateFilterCondition(dateFilter, status),
   ].filter((filter): filter is NonNullable<typeof filter> => filter !== undefined);
 
+  const whereClause = filters.length > 0 ? and(...filters) : undefined;
   const sortColumn = sortBy === "total" ? orders.total : orders.createdAt;
   const orderBy =
     (sortOrder ?? "asc") === "desc" ? desc(sortColumn) : asc(sortColumn);
+
+  const [countRow] = await db
+    .select({ total: count() })
+    .from(orders)
+    .innerJoin(customers, eq(orders.customerId, customers.id))
+    .where(whereClause);
 
   const rows = await db
     .select({
@@ -1264,7 +1367,7 @@ app.openapi(listOrdersRoute, async (c) => {
     })
     .from(orders)
     .innerJoin(customers, eq(orders.customerId, customers.id))
-    .where(filters.length > 0 ? and(...filters) : undefined)
+    .where(whereClause)
     .orderBy(orderBy)
     .limit(limit)
     .offset(offset);
@@ -1301,7 +1404,13 @@ app.openapi(listOrdersRoute, async (c) => {
     );
   }
 
-  return c.json(result, 200);
+  return c.json(
+    {
+      items: result,
+      total: toCount(countRow?.total),
+    },
+    200,
+  );
 });
 
 app.openapi(getOrderRoute, async (c) => {
@@ -1516,47 +1625,102 @@ app.openapi(dashboardStatsRoute, async (c) => {
     sql`((COALESCE(${orders.completedAt}, ${orders.createdAt}) AT TIME ZONE 'UTC') AT TIME ZONE 'America/Los_Angeles')::date = ${restaurantToday}`,
   );
 
+  const restaurantYesterday = sql`(CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles')::date - 1`;
+  const placedYesterday = sql`${restaurantLocalCreated}::date = ${restaurantYesterday}`;
+  const completedYesterdayCondition = and(
+    eq(orders.status, "completed"),
+    sql`((COALESCE(${orders.completedAt}, ${orders.createdAt}) AT TIME ZONE 'UTC') AT TIME ZONE 'America/Los_Angeles')::date = ${restaurantYesterday}`,
+  );
+
   const [revenueRow] = await db
     .select({ totalRevenue: sum(orders.total) })
     .from(orders)
     .where(completedTodayCondition);
+
+  const [yesterdayRevenueRow] = await db
+    .select({ totalRevenue: sum(orders.total) })
+    .from(orders)
+    .where(completedYesterdayCondition);
 
   const [totalOrdersRow] = await db
     .select({ totalOrders: count() })
     .from(orders)
     .where(and(placedToday, ne(orders.status, "cancelled")));
 
+  const [yesterdayOrdersRow] = await db
+    .select({ totalOrders: count() })
+    .from(orders)
+    .where(and(placedYesterday, ne(orders.status, "cancelled")));
+
   const [pendingOrdersRow] = await db
     .select({ pendingOrders: count() })
     .from(orders)
     .where(eq(orders.status, "pending"));
+
+  const [yesterdayPendingRow] = await db
+    .select({ pendingOrders: count() })
+    .from(orders)
+    .where(and(placedYesterday, eq(orders.status, "pending")));
 
   const [completedTodayRow] = await db
     .select({ completedToday: count() })
     .from(orders)
     .where(completedTodayCondition);
 
+  const [customersServedRow] = await db
+    .select({ customersServed: countDistinct(orders.customerId) })
+    .from(orders)
+    .where(and(placedToday, ne(orders.status, "cancelled")));
+
+  const [yesterdayCustomersRow] = await db
+    .select({ customersServed: countDistinct(orders.customerId) })
+    .from(orders)
+    .where(and(placedYesterday, ne(orders.status, "cancelled")));
+
   const totalOrders = toCount(totalOrdersRow?.totalOrders);
+  const yesterdayOrders = toCount(yesterdayOrdersRow?.totalOrders);
   const completedToday = toCount(completedTodayRow?.completedToday);
+  const pendingOrders = toCount(pendingOrdersRow?.pendingOrders);
+  const yesterdayPending = toCount(yesterdayPendingRow?.pendingOrders);
+  const customersServed = toCount(customersServedRow?.customersServed);
+  const yesterdayCustomers = toCount(yesterdayCustomersRow?.customersServed);
   const totalRevenue = revenueRow?.totalRevenue ?? "0";
+  const yesterdayRevenue = Number(yesterdayRevenueRow?.totalRevenue ?? 0);
   const averageOrderValue =
     completedToday > 0
       ? money(Number(totalRevenue) / completedToday)
       : "0.00";
 
+  function changePercent(today: number, yesterday: number): number | null {
+    if (yesterday === 0) {
+      return today === 0 ? 0 : null;
+    }
+
+    return Math.round(((today - yesterday) / yesterday) * 1000) / 10;
+  }
+
   const popularItemRows = await db
     .select({
       menuItemId: orderItems.menuItemId,
       menuItemName: menuItems.name,
+      categoryName: categories.name,
+      imageUrl: menuItems.imageUrl,
       orderCount: count(),
+      revenue: sum(orderItems.subtotal),
     })
     .from(orderItems)
     .innerJoin(orders, eq(orderItems.orderId, orders.id))
     .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
+    .innerJoin(categories, eq(menuItems.categoryId, categories.id))
     .where(placedToday)
-    .groupBy(orderItems.menuItemId, menuItems.name)
+    .groupBy(
+      orderItems.menuItemId,
+      menuItems.name,
+      categories.name,
+      menuItems.imageUrl,
+    )
     .orderBy(desc(count()))
-    .limit(5);
+    .limit(9);
 
   const hourExpr = sql<number>`extract(hour from ((${orders.createdAt} AT TIME ZONE 'UTC') AT TIME ZONE 'America/Los_Angeles'))::int`;
   const hourlyRows = await db
@@ -1605,17 +1769,42 @@ app.openapi(dashboardStatsRoute, async (c) => {
     };
   }
 
+  const statusRows = await db
+    .select({
+      status: orders.status,
+      count: count(),
+    })
+    .from(orders)
+    .where(placedToday)
+    .groupBy(orders.status);
+
+  const statusCounts = {
+    completed: 0,
+    pending: 0,
+    preparing: 0,
+    ready: 0,
+    cancelled: 0,
+  };
+
+  for (const row of statusRows) {
+    statusCounts[row.status] = toCount(row.count);
+  }
+
   return c.json(
     {
       totalRevenue,
       totalOrders,
-      pendingOrders: toCount(pendingOrdersRow?.pendingOrders),
+      pendingOrders,
       completedToday,
+      customersServed,
       averageOrderValue,
       popularItems: popularItemRows.map((row) => ({
         menuItemId: row.menuItemId,
         menuItemName: row.menuItemName,
+        categoryName: row.categoryName,
+        imageUrl: row.imageUrl,
         orderCount: toCount(row.orderCount),
+        revenue: money(Number(row.revenue ?? 0)),
       })),
       hourlyOrders,
       orderTypeDistribution: {
@@ -1623,6 +1812,14 @@ app.openapi(dashboardStatsRoute, async (c) => {
         pickup: typeShare(typeCounts.pickup),
         delivery: typeShare(typeCounts.delivery),
       },
+      orderStatusBreakdown: statusCounts,
+      totalOrdersChangePercent: changePercent(totalOrders, yesterdayOrders),
+      revenueChangePercent: changePercent(Number(totalRevenue), yesterdayRevenue),
+      customersServedChangePercent: changePercent(
+        customersServed,
+        yesterdayCustomers,
+      ),
+      pendingOrdersChange: pendingOrders - yesterdayPending,
     },
     200,
   );

@@ -27,23 +27,38 @@ export const spacing = {
   xl: 24,
 };
 
+export const fonts = {
+  sans: "DMSans-Regular",
+  sansMedium: "DMSans-Medium",
+  sansSemiBold: "DMSans-SemiBold",
+  sansBold: "DMSans-Bold",
+  serif: "DMSerifDisplay-Regular",
+} as const;
+
 export const typography = {
   title: {
+    fontFamily: fonts.sansBold,
     fontSize: 24,
-    fontWeight: "700" as const,
     color: colors.text,
   },
   subtitle: {
+    fontFamily: fonts.sansSemiBold,
     fontSize: 16,
-    fontWeight: "600" as const,
     color: colors.text,
   },
   body: {
+    fontFamily: fonts.sans,
     fontSize: 14,
     color: colors.text,
   },
   caption: {
+    fontFamily: fonts.sans,
     fontSize: 12,
     color: colors.muted,
+  },
+  serifTitle: {
+    fontFamily: fonts.serif,
+    fontSize: 28,
+    color: colors.text,
   },
 };

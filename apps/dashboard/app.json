@@ -7,7 +7,21 @@
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "platforms": ["ios", "android", "web"],
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/DMSans-Regular.ttf",
+            "./assets/fonts/DMSans-Medium.ttf",
+            "./assets/fonts/DMSans-SemiBold.ttf",
+            "./assets/fonts/DMSans-Bold.ttf",
+            "./assets/fonts/DMSerifDisplay-Regular.ttf"
+          ]
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     },

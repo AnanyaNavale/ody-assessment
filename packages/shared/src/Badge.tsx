@@ -1,5 +1,5 @@
 import { Text, View } from "react-native";
-import { colors, spacing } from "./tokens";
+import { colors, fonts, spacing } from "./tokens";
 
 type BadgeTone =
   | "pending"
@@ -31,7 +31,13 @@ export function Badge({
         borderRadius: 4,
       }}
     >
-      <Text style={{ color: palette.text, fontSize: 12, fontWeight: "600" }}>
+      <Text
+        style={{
+          color: palette.text,
+          fontSize: 12,
+          fontFamily: fonts.sansSemiBold,
+        }}
+      >
         {label}
       </Text>
     </View>

@@ -443,6 +443,24 @@
           }
         ]
       },
+      "OrderListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderWithDetails"
+            }
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ]
+      },
       "UpdateOrderStatus": {
         "type": "object",
         "properties": {
@@ -592,14 +610,27 @@
           "menuItemName": {
             "type": "string"
           },
+          "categoryName": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
           "orderCount": {
             "type": "integer"
+          },
+          "revenue": {
+            "type": "string"
           }
         },
         "required": [
           "menuItemId",
           "menuItemName",
-          "orderCount"
+          "categoryName",
+          "imageUrl",
+          "orderCount",
+          "revenue"
         ]
       },
       "HourlyOrders": {
@@ -653,6 +684,33 @@
           "delivery"
         ]
       },
+      "OrderStatusBreakdown": {
+        "type": "object",
+        "properties": {
+          "completed": {
+            "type": "integer"
+          },
+          "pending": {
+            "type": "integer"
+          },
+          "preparing": {
+            "type": "integer"
+          },
+          "ready": {
+            "type": "integer"
+          },
+          "cancelled": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "completed",
+          "pending",
+          "preparing",
+          "ready",
+          "cancelled"
+        ]
+      },
       "DashboardStats": {
         "type": "object",
         "properties": {
@@ -666,6 +724,9 @@
             "type": "integer"
           },
           "completedToday": {
+            "type": "integer"
+          },
+          "customersServed": {
             "type": "integer"
           },
           "averageOrderValue": {
@@ -685,6 +746,24 @@
           },
           "orderTypeDistribution": {
             "$ref": "#/components/schemas/OrderTypeDistribution"
+          },
+          "orderStatusBreakdown": {
+            "$ref": "#/components/schemas/OrderStatusBreakdown"
+          },
+          "totalOrdersChangePercent": {
+            "type": "number",
+            "nullable": true
+          },
+          "revenueChangePercent": {
+            "type": "number",
+            "nullable": true
+          },
+          "customersServedChangePercent": {
+            "type": "number",
+            "nullable": true
+          },
+          "pendingOrdersChange": {
+            "type": "integer"
           }
         },
         "required": [
@@ -692,10 +771,16 @@
           "totalOrders",
           "pendingOrders",
           "completedToday",
+          "customersServed",
           "averageOrderValue",
           "popularItems",
           "hourlyOrders",
-          "orderTypeDistribution"
+          "orderTypeDistribution",
+          "orderStatusBreakdown",
+          "totalOrdersChangePercent",
+          "revenueChangePercent",
+          "customersServedChangePercent",
+          "pendingOrdersChange"
         ]
       },
       "RestaurantSettings": {
@@ -1347,6 +1432,15 @@
           },
           {
             "schema": {
+              "type": "string",
+              "description": "Comma-separated order types (dine_in, pickup, delivery). Use none for no matches."
+            },
+            "required": false,
+            "name": "orderTypes",
+            "in": "query"
+          },
+          {
+            "schema": {
               "type": "integer",
               "minimum": 1,
               "maximum": 100,
@@ -1374,10 +1468,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/OrderWithDetails"
-                  }
+                  "$ref": "#/components/schemas/OrderListResponse"
                 }
               }
             }

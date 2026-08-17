@@ -16,12 +16,14 @@
     "test": "echo 'Tests not configured yet'"
   },
   "dependencies": {
+    "@expo/vector-icons": "14.1.0",
     "@ody/api-client": "workspace:*",
     "@ody/shared": "workspace:*",
     "@ody/types": "workspace:*",
     "@tanstack/react-query": "^5.64.2",
     "expo": "~53.0.0",
     "expo-constants": "~17.1.8",
+    "expo-font": "~13.3.2",
     "expo-linking": "~7.1.7",
     "expo-router": "~5.1.11",
     "expo-status-bar": "~2.2.3",

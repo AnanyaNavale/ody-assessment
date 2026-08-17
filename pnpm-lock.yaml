@@ -29,6 +29,9 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@expo/vector-icons':
+        specifier: 14.1.0
+        version: 14.1.0(expo-font@13.3.2(expo@53.0.27(@babel/core@7.29.7(supports-color@10.2.2))(@expo/metro-runtime@5.0.5(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2)))(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2))(react@19.0.0)(supports-color@10.2.2))(react@19.0.0))(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2))(react@19.0.0)
       '@ody/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
@@ -47,6 +50,9 @@ importers:
       expo-constants:
         specifier: ~17.1.8
         version: 17.1.8(expo@53.0.27(@babel/core@7.29.7(supports-color@10.2.2))(@expo/metro-runtime@5.0.5(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2)))(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2))(react@19.0.0)(supports-color@10.2.2))(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2))(supports-color@10.2.2)
+      expo-font:
+        specifier: ~13.3.2
+        version: 13.3.2(expo@53.0.27(@babel/core@7.29.7(supports-color@10.2.2))(@expo/metro-runtime@5.0.5(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2)))(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2))(react@19.0.0)(supports-color@10.2.2))(react@19.0.0)
       expo-linking:
         specifier: ~7.1.7
         version: 7.1.7(expo@53.0.27(@babel/core@7.29.7(supports-color@10.2.2))(@expo/metro-runtime@5.0.5(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2)))(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2))(react@19.0.0)(supports-color@10.2.2))(react-native@0.79.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.0.14)(react@19.0.0)(supports-color@10.2.2))(react@19.0.0)(supports-color@10.2.2)
