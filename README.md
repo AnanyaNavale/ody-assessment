@@ -1,4 +1,4 @@
-# Ody Technical Assessment
+# Mise
 
 Restaurant operations dashboard and API, organized as a pnpm + Turborepo monorepo.
 
